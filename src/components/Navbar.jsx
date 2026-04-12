@@ -1,7 +1,18 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 
-// Navigation links for the app
+/**
+ * Navbar - Main navigation bar for the app
+ *
+ * Features:
+ * - Responsive design (desktop + mobile hamburger menu)
+ * - Active link highlighting
+ * - "More" dropdown for extra pages
+ * - Bilingual labels (English + Arabic)
+ * - Sticky positioning so it's always visible
+ */
+
+// Primary navigation links - shown in the main nav bar
 const navLinks = [
   { path: '/home', label: 'Home', labelAr: 'الرئيسية', icon: '🏠' },
   { path: '/scanner', label: 'Scanner', labelAr: 'الماسح', icon: '📷' },
@@ -10,7 +21,7 @@ const navLinks = [
   { path: '/community', label: 'Community', labelAr: 'المجتمع', icon: '💬' },
 ]
 
-// Extra pages in "More" dropdown
+// Extra pages accessible from "More" dropdown
 const moreLinks = [
   { path: '/translator', label: 'Translator', labelAr: 'مترجم', icon: '🌍' },
   { path: '/recommendations', label: 'Safe Meals', labelAr: 'وجبات آمنة', icon: '✅' },
@@ -21,21 +32,22 @@ const moreLinks = [
 
 export default function Navbar() {
   const location = useLocation()
+  // State for mobile menu and more dropdown visibility
   const [mobileOpen, setMobileOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
 
   return (
-    <nav className="bg-white shadow-md sticky top-0 z-50">
+    <nav className="bg-white/95 backdrop-blur-sm shadow-md sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
+          {/* Logo / Brand */}
           <Link to="/home" className="flex items-center gap-2 no-underline">
             <span className="text-2xl">🛡️</span>
             <span className="text-xl font-bold text-emerald-700">Salamatak</span>
             <span className="text-sm text-emerald-600 hidden sm:inline">سلامتك</span>
           </Link>
 
-          {/* Desktop nav links */}
+          {/* Desktop navigation links - hidden on mobile */}
           <div className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => (
               <Link
@@ -52,7 +64,7 @@ export default function Navbar() {
               </Link>
             ))}
 
-            {/* More dropdown */}
+            {/* "More" dropdown for extra pages */}
             <div className="relative">
               <button
                 onClick={() => setMoreOpen(!moreOpen)}
@@ -60,6 +72,7 @@ export default function Navbar() {
               >
                 ⋯ More
               </button>
+              {/* Dropdown menu */}
               {moreOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50">
                   {moreLinks.map((link) => (
@@ -82,19 +95,21 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* Mobile hamburger */}
+          {/* Mobile hamburger menu button */}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
             className="md:hidden p-2 rounded-lg hover:bg-gray-100 text-2xl cursor-pointer"
+            aria-label="Toggle menu"
           >
             {mobileOpen ? '✕' : '☰'}
           </button>
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile menu - slides down when hamburger is clicked */}
       {mobileOpen && (
         <div className="md:hidden border-t border-gray-100 bg-white pb-4">
+          {/* Show all links (primary + more) in mobile */}
           {[...navLinks, ...moreLinks].map((link) => (
             <Link
               key={link.path}

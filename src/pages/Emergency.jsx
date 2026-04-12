@@ -1,34 +1,52 @@
 import { useState } from 'react'
 import { ALLERGY_TYPES } from '../data/allergens'
 
-// Emergency Mode - displays medical card with allergy info
-// Uses large, readable text for quick access in emergencies
+/**
+ * Emergency Mode - Medical card for allergy emergencies
+ *
+ * This page provides a large, easy-to-read medical card that users
+ * can show to medical staff or restaurant employees in an emergency.
+ *
+ * Features:
+ * - Big, bold emergency header (visible from distance)
+ * - Lists all user's allergies with icons
+ * - Shows forbidden foods for each allergy type
+ * - Editable emergency contact number
+ * - Quick-dial buttons for Saudi emergency services (997, 911)
+ * - Share card feature via device share API
+ *
+ * The UI is intentionally simple and large for quick readability.
+ */
 export default function Emergency() {
+  // Load user's saved allergies
   const [selectedAllergies] = useState(() => {
     const saved = localStorage.getItem('salamatak-allergies')
     return saved ? JSON.parse(saved) : ['nuts']
   })
 
+  // Load/save emergency contact number (default: 997 Saudi emergency)
   const [emergencyContact, setEmergencyContact] = useState(() => {
     return localStorage.getItem('salamatak-emergency-contact') || '997'
   })
 
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(false)           // Toggle edit mode for contact
   const [tempContact, setTempContact] = useState(emergencyContact)
 
+  // Save the edited emergency contact
   const saveContact = () => {
     localStorage.setItem('salamatak-emergency-contact', tempContact)
     setEmergencyContact(tempContact)
     setEditing(false)
   }
 
-  // Get full allergy data for selected allergies
+  // Get full allergy data objects for the user's selected allergies
   const userAllergies = ALLERGY_TYPES.filter((a) => selectedAllergies.includes(a.id))
 
-  // Forbidden foods per allergy
+  // List of forbidden foods for each allergy type
+  // This data helps users quickly identify what to avoid
   const forbiddenFoods = {
     nuts: ['Peanuts', 'Almonds', 'Cashews', 'Walnuts', 'Pistachios', 'Hazelnuts', 'Nutella', 'Peanut butter', 'Marzipan'],
-    milk: ['Milk', 'Cheese', 'Butter', 'Cream', 'Yogurt', 'Ice cream', 'Whey protein', 'Béchamel sauce'],
+    milk: ['Milk', 'Cheese', 'Butter', 'Cream', 'Yogurt', 'Ice cream', 'Whey protein', 'Bechamel sauce'],
     eggs: ['Eggs', 'Mayonnaise', 'Meringue', 'Custard', 'Egg noodles', 'Some bread', 'Cake', 'Cookies'],
     gluten: ['Bread', 'Pasta', 'Pizza dough', 'Cakes', 'Cookies', 'Flour tortillas', 'Soy sauce', 'Beer'],
     seafood: ['Shrimp', 'Fish', 'Lobster', 'Crab', 'Oysters', 'Calamari', 'Sushi', 'Fish sauce'],
@@ -36,34 +54,43 @@ export default function Emergency() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      {/* Big emergency header */}
+      {/* Big red emergency header - intentionally large for visibility */}
       <div className="bg-red-600 text-white rounded-3xl p-8 text-center mb-6 shadow-lg">
         <div className="text-6xl mb-4">🚨</div>
-        <h1 className="text-4xl font-bold mb-2">EMERGENCY CARD</h1>
+        <h1 className="text-4xl font-extrabold mb-2">EMERGENCY CARD</h1>
         <h2 className="text-2xl font-bold">بطاقة الطوارئ</h2>
-        <p className="text-red-200 mt-2">Show this card to medical staff or restaurant employees</p>
+        <p className="text-red-200 mt-2 text-sm">
+          Show this card to medical staff or restaurant employees
+        </p>
+        <p className="text-red-200 text-sm" dir="rtl">
+          أظهر هذه البطاقة لموظفي الطوارئ أو المطعم
+        </p>
       </div>
 
-      {/* Medical card */}
+      {/* Medical card - white card with allergy details */}
       <div className="bg-white rounded-3xl shadow-lg border-2 border-red-200 overflow-hidden mb-6">
         {/* Card header */}
         <div className="bg-red-50 px-6 py-4 border-b border-red-100">
           <h3 className="text-xl font-bold text-red-800">⚕️ Medical Information / معلومات طبية</h3>
         </div>
 
-        {/* Allergy types */}
+        {/* Allergy types section */}
         <div className="p-6">
           <h4 className="text-lg font-bold text-gray-800 mb-4">My Allergies / أنواع الحساسية:</h4>
 
           {userAllergies.length === 0 ? (
+            // No allergies selected - prompt user to set them
             <p className="text-gray-400 text-center py-4">
               No allergies selected. Go to Home page to set your allergies.
+              <br />
+              <span dir="rtl">لم يتم اختيار حساسية. اذهب للصفحة الرئيسية لتحديد حساسيتك</span>
             </p>
           ) : (
+            // Show each allergy with its forbidden foods
             <div className="space-y-4">
               {userAllergies.map((allergy) => (
                 <div key={allergy.id} className="bg-red-50 rounded-2xl p-5 border border-red-100">
-                  {/* Allergy name - large text */}
+                  {/* Allergy name - extra large for quick reading */}
                   <div className="flex items-center gap-3 mb-3">
                     <span className="text-4xl">{allergy.icon}</span>
                     <div>
@@ -72,10 +99,10 @@ export default function Emergency() {
                     </div>
                   </div>
 
-                  {/* Forbidden foods */}
+                  {/* Forbidden foods list */}
                   <div>
                     <div className="text-sm font-semibold text-red-800 mb-2">
-                      ⛔ Forbidden Foods / أطعمة ممنوعة:
+                      Forbidden Foods / أطعمة ممنوعة:
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {(forbiddenFoods[allergy.id] || []).map((food) => (
@@ -94,13 +121,14 @@ export default function Emergency() {
           )}
         </div>
 
-        {/* Emergency contact */}
+        {/* Emergency contact section */}
         <div className="px-6 py-5 bg-gray-50 border-t border-gray-100">
           <h4 className="text-lg font-bold text-gray-800 mb-3">
             📞 Emergency Contact / رقم الطوارئ:
           </h4>
 
           {editing ? (
+            // Edit mode - input field + save button
             <div className="flex gap-2">
               <input
                 type="tel"
@@ -111,12 +139,13 @@ export default function Emergency() {
               />
               <button
                 onClick={saveContact}
-                className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold cursor-pointer"
+                className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold cursor-pointer hover:bg-emerald-700 transition-colors"
               >
                 Save
               </button>
             </div>
           ) : (
+            // Display mode - big call button + edit button
             <div className="flex items-center gap-3">
               <a
                 href={`tel:${emergencyContact}`}
@@ -133,6 +162,7 @@ export default function Emergency() {
             </div>
           )}
 
+          {/* Quick-dial Saudi emergency numbers */}
           <div className="mt-3 flex gap-2">
             <a
               href="tel:997"
@@ -150,7 +180,7 @@ export default function Emergency() {
         </div>
       </div>
 
-      {/* Quick action buttons */}
+      {/* Quick action buttons at bottom */}
       <div className="grid grid-cols-2 gap-3">
         <a
           href="tel:997"
@@ -162,6 +192,7 @@ export default function Emergency() {
         </a>
         <button
           onClick={() => {
+            // Use the Web Share API to share the allergy card
             if (navigator.share) {
               navigator.share({
                 title: 'My Allergy Card - Salamatak',

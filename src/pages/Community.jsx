@@ -1,6 +1,20 @@
 import { useState } from 'react'
 
-// Sample community posts to start with
+/**
+ * Community Reviews - User-generated food allergy warnings and tips
+ *
+ * Features:
+ * - Feed of community posts about food allergies at restaurants
+ * - Users can post warnings (e.g., "This burger contains egg sauce")
+ * - Posts have tags: Warning, Danger, Safe, Tip
+ * - Like system for helpful posts
+ * - Restaurant tagging on posts
+ * - Form to submit new warnings/tips
+ *
+ * All data is stored in component state (mock - no backend).
+ */
+
+// Sample community posts to seed the feed
 const initialPosts = [
   {
     id: 1,
@@ -8,7 +22,7 @@ const initialPosts = [
     avatar: '👩',
     time: '2 hours ago',
     restaurant: 'Kudu',
-    text: '⚠️ The new beef burger at Kudu contains egg-based mayo sauce! Be careful if you have egg allergy.',
+    text: 'The new beef burger at Kudu contains egg-based mayo sauce! Be careful if you have egg allergy.',
     likes: 12,
     tag: 'warning',
   },
@@ -18,7 +32,7 @@ const initialPosts = [
     avatar: '👨',
     time: '5 hours ago',
     restaurant: 'Al Baik',
-    text: '✅ Grilled chicken at Al Baik is safe for nut allergies. I confirmed with the staff.',
+    text: 'Grilled chicken at Al Baik is safe for nut allergies. I confirmed with the staff.',
     likes: 24,
     tag: 'safe',
   },
@@ -28,7 +42,7 @@ const initialPosts = [
     avatar: '👩‍🦱',
     time: '1 day ago',
     restaurant: 'The Cheesecake Factory',
-    text: '🚫 Peanut Butter Cup Fudge cheesecake has both peanuts AND almonds. Very dangerous for nut allergies!',
+    text: 'Peanut Butter Cup Fudge cheesecake has both peanuts AND almonds. Very dangerous for nut allergies!',
     likes: 45,
     tag: 'danger',
   },
@@ -38,7 +52,7 @@ const initialPosts = [
     avatar: '🧑',
     time: '1 day ago',
     restaurant: 'Shawarmer',
-    text: '✅ Falafel wrap at Shawarmer is gluten-free friendly if you ask for lettuce wrap instead of bread.',
+    text: 'Falafel wrap at Shawarmer is gluten-free friendly if you ask for lettuce wrap instead of bread.',
     likes: 18,
     tag: 'tip',
   },
@@ -48,26 +62,25 @@ const initialPosts = [
     avatar: '👧',
     time: '2 days ago',
     restaurant: 'Maestro Pizza',
-    text: '⚠️ The chocolate lava cake contains eggs and dairy. My sister had a reaction. Please be careful!',
+    text: 'The chocolate lava cake contains eggs and dairy. My sister had a reaction. Please be careful!',
     likes: 31,
     tag: 'warning',
   },
 ]
 
-// Community Reviews - users can post and view food allergy warnings
 export default function Community() {
-  const [posts, setPosts] = useState(initialPosts)
-  const [newPost, setNewPost] = useState('')
-  const [newRestaurant, setNewRestaurant] = useState('')
-  const [newTag, setNewTag] = useState('warning')
-  const [showForm, setShowForm] = useState(false)
+  const [posts, setPosts] = useState(initialPosts)        // All posts
+  const [newPost, setNewPost] = useState('')               // New post text
+  const [newRestaurant, setNewRestaurant] = useState('')   // New post restaurant
+  const [newTag, setNewTag] = useState('warning')          // New post tag type
+  const [showForm, setShowForm] = useState(false)          // Toggle new post form
 
-  // Add a new post
+  // Add a new post to the feed (prepend to show newest first)
   const handlePost = () => {
     if (!newPost.trim()) return
 
     const post = {
-      id: Date.now(),
+      id: Date.now(), // Use timestamp as unique ID
       user: 'You',
       avatar: '🙋',
       time: 'Just now',
@@ -82,14 +95,14 @@ export default function Community() {
     setShowForm(false)
   }
 
-  // Like a post
+  // Increment like count for a post
   const handleLike = (id) => {
     setPosts(posts.map((p) =>
       p.id === id ? { ...p, likes: p.likes + 1 } : p
     ))
   }
 
-  // Tag styles
+  // Tag styles and labels for each post type
   const tagStyles = {
     warning: { bg: 'bg-yellow-100 text-yellow-700', label: '⚠️ Warning' },
     danger: { bg: 'bg-red-100 text-red-700', label: '🚫 Danger' },
@@ -99,14 +112,16 @@ export default function Community() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
+      {/* Page header */}
       <h1 className="text-3xl font-bold text-emerald-800 mb-2">💬 Community Reviews</h1>
-      <p className="text-gray-500 mb-6">Share and read allergy warnings from other users</p>
+      <p className="text-gray-500 mb-1">Share and read allergy warnings from other users</p>
+      <p className="text-gray-400 text-sm mb-6" dir="rtl">شارك واقرأ تحذيرات الحساسية من المستخدمين الآخرين</p>
 
-      {/* New post button */}
+      {/* New post button - shown when form is hidden */}
       {!showForm && (
         <button
           onClick={() => setShowForm(true)}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl mb-6 transition-all text-lg cursor-pointer"
+          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl mb-6 transition-all text-lg cursor-pointer active:scale-[0.98]"
         >
           ✏️ Post a Warning or Tip
         </button>
@@ -117,6 +132,7 @@ export default function Community() {
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-6">
           <h3 className="font-semibold text-gray-700 mb-3">Share your experience:</h3>
 
+          {/* Restaurant name input */}
           <input
             type="text"
             value={newRestaurant}
@@ -125,6 +141,7 @@ export default function Community() {
             className="w-full px-4 py-3 border border-gray-200 rounded-xl mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-300"
           />
 
+          {/* Post content textarea */}
           <textarea
             value={newPost}
             onChange={(e) => setNewPost(e.target.value)}
@@ -133,7 +150,7 @@ export default function Community() {
             className="w-full px-4 py-3 border border-gray-200 rounded-xl mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-300 resize-none"
           />
 
-          {/* Tag selector */}
+          {/* Tag selector - choose post type */}
           <div className="flex flex-wrap gap-2 mb-4">
             {Object.entries(tagStyles).map(([key, style]) => (
               <button
@@ -150,6 +167,7 @@ export default function Community() {
             ))}
           </div>
 
+          {/* Submit and cancel buttons */}
           <div className="flex gap-2">
             <button
               onClick={handlePost}
@@ -168,13 +186,13 @@ export default function Community() {
         </div>
       )}
 
-      {/* Posts feed */}
+      {/* Posts feed - displays all community posts */}
       <div className="space-y-4">
         {posts.map((post) => {
           const style = tagStyles[post.tag] || tagStyles.warning
           return (
-            <div key={post.id} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              {/* Post header */}
+            <div key={post.id} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+              {/* Post header - user info + tag */}
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">{post.avatar}</span>

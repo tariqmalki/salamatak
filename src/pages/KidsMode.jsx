@@ -1,13 +1,32 @@
 import { useState } from 'react'
 import { ALLERGY_TYPES } from '../data/allergens'
 
-// Kids Mode - simplified visual interface using large icons instead of text
+/**
+ * Kids Mode - Simplified visual interface for children
+ *
+ * Features:
+ * - Large icons instead of text for easy understanding
+ * - Big toggle buttons for selecting allergies
+ * - Color-coded food grid:
+ *   Green background + ✔️ = Safe to eat
+ *   Red background + ❌ = NOT safe to eat
+ * - Common food items mapped to allergen categories
+ * - Fun, kid-friendly design with big elements
+ * - Legend at the bottom explaining the symbols
+ *
+ * Example display:
+ *   🥛 ❌  (milk - not safe if allergic)
+ *   🥜 ❌  (nuts - not safe if allergic)
+ *   🍞 ✔   (bread - safe if only nut allergy)
+ */
 export default function KidsMode() {
+  // Load saved allergy preferences
   const [selectedAllergies, setSelectedAllergies] = useState(() => {
     const saved = localStorage.getItem('salamatak-allergies')
     return saved ? JSON.parse(saved) : ['nuts', 'milk']
   })
 
+  // Toggle an allergy on/off
   const toggleAllergy = (id) => {
     setSelectedAllergies((prev) =>
       prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]
@@ -15,6 +34,7 @@ export default function KidsMode() {
   }
 
   // Common food items with their allergen associations
+  // Each food maps to one or more allergen categories
   const foodItems = [
     { name: 'Milk', icon: '🥛', allergens: ['milk'] },
     { name: 'Cheese', icon: '🧀', allergens: ['milk'] },
@@ -42,22 +62,24 @@ export default function KidsMode() {
     { name: 'Butter', icon: '🧈', allergens: ['milk'] },
   ]
 
-  // Check if food is safe based on selected allergies
+  // Check if a food is safe based on the user's selected allergies
+  // Safe = none of the food's allergens match the user's allergies
   const isFoodSafe = (food) => {
     return !food.allergens.some((a) => selectedAllergies.includes(a))
   }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      {/* Fun header for kids */}
+      {/* Fun header for kids - large and colorful */}
       <div className="text-center mb-8">
         <div className="text-6xl mb-3">👶</div>
-        <h1 className="text-4xl font-bold text-emerald-800">Kids Mode</h1>
-        <h2 className="text-2xl text-emerald-600">وضع الأطفال</h2>
-        <p className="text-gray-500 mt-2">Tap foods to see if they're safe!</p>
+        <h1 className="text-4xl font-extrabold text-emerald-800">Kids Mode</h1>
+        <h2 className="text-2xl text-emerald-600 font-bold">وضع الأطفال</h2>
+        <p className="text-gray-500 mt-2 text-lg">Tap foods to see if they're safe!</p>
+        <p className="text-gray-400" dir="rtl">اضغط على الأطعمة لمعرفة إذا كانت آمنة!</p>
       </div>
 
-      {/* Allergy selector - big buttons for kids */}
+      {/* Allergy selector - extra large buttons for kids */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-8">
         <h3 className="text-xl font-bold text-gray-700 text-center mb-4">
           I'm allergic to: / أنا عندي حساسية من:
@@ -85,33 +107,33 @@ export default function KidsMode() {
         </div>
       </div>
 
-      {/* Food grid - large icons */}
+      {/* Food grid - large icons in a responsive grid */}
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
         {foodItems.map((food) => {
           const safe = isFoodSafe(food)
           return (
             <div
               key={food.name}
-              className={`relative rounded-2xl p-4 text-center border-2 transition-all ${
+              className={`relative rounded-2xl p-4 text-center border-2 transition-all hover:scale-105 ${
                 safe
                   ? 'bg-green-50 border-green-300 hover:bg-green-100'
                   : 'bg-red-50 border-red-300 hover:bg-red-100'
               }`}
             >
-              {/* Large food icon */}
+              {/* Large food emoji icon */}
               <div className="text-5xl mb-2">{food.icon}</div>
 
-              {/* Safe/Unsafe indicator */}
+              {/* Safe (✔️) or Unsafe (❌) indicator */}
               <div className={`text-2xl ${safe ? 'text-green-500' : 'text-red-500'}`}>
                 {safe ? '✔️' : '❌'}
               </div>
 
-              {/* Food name */}
+              {/* Food name - small text below */}
               <div className={`text-xs font-bold mt-1 ${safe ? 'text-green-700' : 'text-red-700'}`}>
                 {food.name}
               </div>
 
-              {/* Overlay for unsafe foods */}
+              {/* Warning overlay for unsafe foods */}
               {!safe && (
                 <div className="absolute top-1 right-1">
                   <span className="text-lg">⛔</span>
@@ -122,8 +144,8 @@ export default function KidsMode() {
         })}
       </div>
 
-      {/* Legend */}
-      <div className="flex justify-center gap-8 mt-8">
+      {/* Legend explaining the symbols */}
+      <div className="flex justify-center gap-8 mt-8 bg-white rounded-2xl p-4 shadow-sm">
         <div className="flex items-center gap-2 text-lg">
           <span className="text-2xl">✔️</span>
           <span className="font-bold text-green-700">Safe! آمن</span>

@@ -2,13 +2,27 @@ import { useState } from 'react'
 import { barcodeDatabase } from '../data/barcodes'
 import { ALLERGY_TYPES } from '../data/allergens'
 
-// Barcode Scanner (Simulated) - user enters barcode number to check product
+/**
+ * Barcode Scanner (Simulated) - Look up products by barcode number
+ *
+ * Features:
+ * - User enters a barcode number (or picks from samples)
+ * - App looks up the product in a simulated database
+ * - Shows product name, brand, ingredients, and allergens
+ * - Color-coded risk level (Red/Yellow/Green)
+ * - Highlights ingredients that are allergens
+ * - Personalized danger warning if product matches user's allergies
+ *
+ * Note: This is a simulated scanner. In a real app, this would use
+ * the device camera to scan actual barcodes.
+ */
 export default function BarcodeScanner() {
-  const [barcode, setBarcode] = useState('')
-  const [result, setResult] = useState(null)
-  const [scanning, setScanning] = useState(false)
-  const [notFound, setNotFound] = useState(false)
+  const [barcode, setBarcode] = useState('')         // Barcode input
+  const [result, setResult] = useState(null)         // Lookup result
+  const [scanning, setScanning] = useState(false)    // Loading state
+  const [notFound, setNotFound] = useState(false)    // Product not in database
 
+  // Load user's allergy preferences
   const [selectedAllergies] = useState(() => {
     const saved = localStorage.getItem('salamatak-allergies')
     return saved ? JSON.parse(saved) : ['nuts']
@@ -22,11 +36,11 @@ export default function BarcodeScanner() {
     setNotFound(false)
     setResult(null)
 
-    // Simulate scanning delay
+    // Simulate a 1.5 second scanning delay
     setTimeout(() => {
       const product = barcodeDatabase[barcode.trim()]
       if (product) {
-        // Check if any of the product's allergens match user's allergies
+        // Product found - check if any allergens match user's profile
         const matchedAllergens = product.allergens.filter((a) =>
           selectedAllergies.includes(a)
         )
@@ -38,15 +52,17 @@ export default function BarcodeScanner() {
     }, 1500)
   }
 
-  // Quick-fill sample barcodes
+  // Quick-fill sample barcodes for easy testing
   const sampleBarcodes = [
     { code: '6281000000001', label: 'Almarai Milk' },
     { code: '6281000000003', label: 'Galaxy Chocolate' },
     { code: '6281000000005', label: 'Al Rabee Juice' },
     { code: '6281000000008', label: 'Americana Nuggets' },
     { code: '6281000000011', label: 'Snickers Bar' },
+    { code: '6281000000012', label: 'Tuna Can' },
   ]
 
+  // Color styles for each risk level
   const riskColors = {
     red: 'bg-red-50 border-red-300',
     yellow: 'bg-yellow-50 border-yellow-300',
@@ -61,10 +77,12 @@ export default function BarcodeScanner() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
+      {/* Page header */}
       <h1 className="text-3xl font-bold text-emerald-800 mb-2">📊 Barcode Scanner</h1>
-      <p className="text-gray-500 mb-6">Enter a product barcode to check ingredients and allergens</p>
+      <p className="text-gray-500 mb-1">Enter a product barcode to check ingredients and allergens</p>
+      <p className="text-gray-400 text-sm mb-6" dir="rtl">أدخل رقم الباركود للتحقق من المكونات والمواد المسببة للحساسية</p>
 
-      {/* Barcode input */}
+      {/* Barcode input area */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
         <div className="flex gap-3">
           <input
@@ -110,7 +128,7 @@ export default function BarcodeScanner() {
         </div>
       )}
 
-      {/* Not found */}
+      {/* Product not found message */}
       {notFound && (
         <div className="bg-gray-50 rounded-2xl p-8 border border-gray-200 text-center">
           <div className="text-5xl mb-3">🔍</div>
@@ -121,28 +139,29 @@ export default function BarcodeScanner() {
         </div>
       )}
 
-      {/* Result */}
+      {/* Product result card */}
       {result && !scanning && (
         <div className={`rounded-2xl border-2 overflow-hidden ${riskColors[result.riskLevel]}`}>
-          {/* Product header */}
           <div className="p-6">
+            {/* Product header - name, Arabic name, brand */}
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h3 className="text-xl font-bold text-gray-800">{result.name}</h3>
                 <p className="text-lg text-gray-600">{result.nameAr}</p>
                 <p className="text-sm text-gray-400 mt-1">Brand: {result.brand}</p>
               </div>
-              <span className={`text-xl font-bold ${riskLabels[result.riskLevel].color}`}>
+              {/* Risk level badge */}
+              <span className={`text-xl font-bold shrink-0 ${riskLabels[result.riskLevel].color}`}>
                 {riskLabels[result.riskLevel].text}
               </span>
             </div>
 
-            {/* Ingredients */}
+            {/* Ingredients list - highlights allergen ingredients */}
             <div className="mb-4">
               <h4 className="font-semibold text-gray-700 mb-2">Ingredients:</h4>
               <div className="flex flex-wrap gap-2">
                 {result.ingredients.map((ingredient) => {
-                  // Highlight allergen ingredients
+                  // Check if this ingredient is an allergen
                   const isAllergen = result.allergens.some((a) =>
                     ALLERGY_TYPES.find((at) => at.id === a)?.keywords.some((kw) =>
                       ingredient.toLowerCase().includes(kw.toLowerCase())
@@ -182,7 +201,7 @@ export default function BarcodeScanner() {
                         }`}
                       >
                         {allergy?.icon} {allergy?.label}
-                        {isUserAllergic && ' ⚠️ YOU ARE ALLERGIC!'}
+                        {isUserAllergic && ' - YOU ARE ALLERGIC!'}
                       </span>
                     )
                   })}
@@ -190,14 +209,14 @@ export default function BarcodeScanner() {
               </div>
             )}
 
-            {/* Personal risk assessment */}
+            {/* Personalized risk assessment based on user's allergies */}
             {result.matchedAllergens.length > 0 ? (
               <div className="bg-red-100 rounded-xl p-4 border border-red-300">
                 <p className="text-red-800 font-bold text-lg">
                   🚫 DANGER: This product contains allergens you are allergic to!
                 </p>
                 <p className="text-red-600 text-sm mt-1">
-                  Do not consume this product.
+                  Do not consume this product. / لا تتناول هذا المنتج
                 </p>
               </div>
             ) : result.allergens.length > 0 ? (
