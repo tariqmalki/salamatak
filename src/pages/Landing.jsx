@@ -17,8 +17,10 @@ export default function Landing() {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-green-50 flex flex-col items-center justify-center px-4">
       {/* Hero section */}
       <div className="text-center max-w-2xl">
-        {/* App icon with bounce animation */}
-        <div className="text-8xl mb-6 animate-bounce">🛡️</div>
+        {/* App logo with bounce animation */}
+        <div className="mb-6 animate-bounce">
+          <img src="/salamatak/logo.svg" alt="Salamatak logo" className="h-28 w-28 mx-auto" />
+        </div>
 
         {/* App title - English */}
         <h1 className="text-5xl md:text-6xl font-extrabold text-emerald-800 mb-2 tracking-tight">

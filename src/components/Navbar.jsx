@@ -42,7 +42,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo / Brand */}
           <Link to="/home" className="flex items-center gap-2 no-underline">
-            <span className="text-2xl">🛡️</span>
+            <img src="/salamatak/logo.svg" alt="Salamatak logo" className="h-9 w-9" />
             <span className="text-xl font-bold text-emerald-700">Salamatak</span>
             <span className="text-sm text-emerald-600 hidden sm:inline">سلامتك</span>
           </Link>

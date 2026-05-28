@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 220" fill="none">
+  <!-- Location pin outer shape -->
+  <path d="M100 200 C100 200 25 130 25 80 C25 38.6 58.6 5 100 5 C141.4 5 175 38.6 175 80 C175 130 100 200 100 200Z" fill="#2ABFB0"/>
+  <!-- Crescent/swoosh shape -->
+  <path d="M140 45 C140 45 155 70 145 100 C135 130 105 145 80 135 C80 135 120 140 135 105 C150 70 140 45 140 45Z" fill="#1A8A7D"/>
+  <!-- Heart shape -->
+  <path d="M100 130 C100 130 65 105 65 85 C65 72 75 63 87 63 C94 63 100 68 100 68 C100 68 106 63 113 63 C125 63 135 72 135 85 C135 105 100 130 100 130Z" fill="#E8F5F3" stroke="#2ABFB0" stroke-width="2"/>
+  <!-- Inner heart accent -->
+  <path d="M100 120 C100 120 75 100 75 85 C75 76 82 70 90 70 C95 70 100 74 100 74 C100 74 105 70 110 70 C118 70 125 76 125 85 C125 100 100 120 100 120Z" fill="#2ABFB0" opacity="0.3"/>
+  <!-- Medical cross -->
+  <rect x="92" y="25" width="16" height="35" rx="3" fill="white"/>
+  <rect x="82.5" y="34.5" width="35" height="16" rx="3" fill="white"/>
+</svg>
