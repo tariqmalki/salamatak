@@ -1,13 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 220" fill="none">
-  <!-- Location pin outer shape -->
-  <path d="M100 200 C100 200 25 130 25 80 C25 38.6 58.6 5 100 5 C141.4 5 175 38.6 175 80 C175 130 100 200 100 200Z" fill="#2ABFB0"/>
-  <!-- Crescent/swoosh shape -->
-  <path d="M140 45 C140 45 155 70 145 100 C135 130 105 145 80 135 C80 135 120 140 135 105 C150 70 140 45 140 45Z" fill="#1A8A7D"/>
-  <!-- Heart shape -->
-  <path d="M100 130 C100 130 65 105 65 85 C65 72 75 63 87 63 C94 63 100 68 100 68 C100 68 106 63 113 63 C125 63 135 72 135 85 C135 105 100 130 100 130Z" fill="#E8F5F3" stroke="#2ABFB0" stroke-width="2"/>
-  <!-- Inner heart accent -->
-  <path d="M100 120 C100 120 75 100 75 85 C75 76 82 70 90 70 C95 70 100 74 100 74 C100 74 105 70 110 70 C118 70 125 76 125 85 C125 100 100 120 100 120Z" fill="#2ABFB0" opacity="0.3"/>
-  <!-- Medical cross -->
-  <rect x="92" y="25" width="16" height="35" rx="3" fill="white"/>
-  <rect x="82.5" y="34.5" width="35" height="16" rx="3" fill="white"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260" fill="none">
+  <!-- Outer teardrop / location-pin shape -->
+  <path d="M100 210 C100 210 30 140 30 85 C30 46.3 61.3 15 100 15 C138.7 15 170 46.3 170 85 C170 140 100 210 100 210Z" fill="#3BBFAD"/>
+
+  <!-- Crescent / protective swoosh -->
+  <path d="M130 35 C155 55 165 85 155 115 C145 145 115 160 85 150 C105 158 135 145 148 115 C160 85 148 52 130 35Z" fill="#1D8C80"/>
+
+  <!-- Heart shape - caring/protection symbol -->
+  <path d="M100 145 C100 145 58 112 58 85 C58 69 70 58 85 58 C93 58 100 66 100 66 C100 66 107 58 115 58 C130 58 142 69 142 85 C142 112 100 145 100 145Z" fill="white"/>
+
+  <!-- Fork (left side of heart) -->
+  <g transform="translate(80, 75) rotate(-15)" fill="#1D8C80">
+    <rect x="0" y="0" width="2.5" height="30" rx="1"/>
+    <rect x="5" y="0" width="2.5" height="30" rx="1"/>
+    <rect x="10" y="0" width="2.5" height="30" rx="1"/>
+    <rect x="-0.5" y="28" width="13.5" height="4" rx="2"/>
+    <rect x="4.5" y="30" width="3.5" height="18" rx="1.5"/>
+  </g>
+
+  <!-- Spoon (right side of heart) -->
+  <g transform="translate(112, 75) rotate(15)" fill="#1D8C80">
+    <ellipse cx="5.5" cy="8" rx="6.5" ry="10"/>
+    <rect x="3.5" y="16" width="4" height="30" rx="2"/>
+  </g>
+
+  <!-- Small plus/cross at top - subtle -->
+  <rect x="95.5" y="28" width="9" height="20" rx="2.5" fill="white" opacity="0.8"/>
+  <rect x="90" y="33.5" width="20" height="9" rx="2.5" fill="white" opacity="0.8"/>
+
+  <!-- Arabic text "سلامتك" -->
+  <text x="100" y="245" text-anchor="middle" font-family="Cairo, Arial, sans-serif" font-size="32" font-weight="700" fill="#1D8C80">سلامتك</text>
 </svg>
