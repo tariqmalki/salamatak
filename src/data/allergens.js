@@ -1,24 +1,22 @@
 /**
  * allergens.js - Allergy types and detection logic
  *
- * This file defines the 5 main allergy categories and provides
+ * This file defines 17 allergy categories and provides
  * a keyword-based detection system to simulate AI allergen analysis.
  * Each allergy has keywords in both English and Arabic for bilingual support.
  */
 
-// List of allergy types with icons, labels in both languages, and keywords
 export const ALLERGY_TYPES = [
   {
     id: 'nuts',
     label: 'Nuts',
     labelAr: 'مكسرات',
     icon: '🥜',
-    // Keywords used to detect this allergen in dish names/descriptions
     keywords: [
-      'peanut', 'almond', 'cashew', 'walnut', 'pistachio', 'hazelnut',
+      'peanut', 'almond', 'cashew', 'walnut', 'pistachio',
       'pecan', 'macadamia', 'nutella', 'praline', 'marzipan', 'nut',
       'peanut butter', 'almond milk', 'trail mix',
-      'فستق', 'لوز', 'جوز', 'كاجو', 'بندق', 'مكسرات', 'زبدة الفول السوداني'
+      'فستق', 'لوز', 'جوز', 'كاجو', 'مكسرات', 'زبدة الفول السوداني'
     ],
   },
   {
@@ -63,39 +61,151 @@ export const ALLERGY_TYPES = [
     labelAr: 'مأكولات بحرية',
     icon: '🦐',
     keywords: [
-      'shrimp', 'prawn', 'lobster', 'crab', 'fish', 'salmon', 'tuna',
+      'shrimp', 'prawn', 'lobster', 'crab', 'fish', 'salmon',
       'oyster', 'clam', 'mussel', 'anchovy', 'squid', 'calamari',
       'sushi', 'sashimi', 'seafood', 'fish sauce', 'surimi',
-      'سمك', 'ربيان', 'جمبري', 'تونة', 'سلمون', 'بحري', 'كاليماري'
+      'سمك', 'ربيان', 'جمبري', 'سلمون', 'بحري', 'كاليماري'
+    ],
+  },
+  {
+    id: 'strawberry',
+    label: 'Strawberry',
+    labelAr: 'فراولة',
+    icon: '🍓',
+    keywords: [
+      'strawberry', 'strawberries', 'berry mix', 'mixed berries',
+      'فراولة', 'فراوله', 'توت'
+    ],
+  },
+  {
+    id: 'soya',
+    label: 'Soya',
+    labelAr: 'صويا',
+    icon: '🫘',
+    keywords: [
+      'soy', 'soya', 'soybean', 'soy sauce', 'soy milk', 'tofu',
+      'edamame', 'tempeh', 'miso', 'soy lecithin', 'soy protein',
+      'صويا', 'فول الصويا', 'صوص الصويا', 'حليب الصويا', 'توفو'
+    ],
+  },
+  {
+    id: 'mango',
+    label: 'Mango',
+    labelAr: 'مانجو',
+    icon: '🥭',
+    keywords: [
+      'mango', 'mangoes', 'mango juice', 'mango smoothie', 'mango chutney',
+      'مانجو', 'مانجا', 'عصير مانجو'
+    ],
+  },
+  {
+    id: 'potato',
+    label: 'Potato',
+    labelAr: 'بطاطس',
+    icon: '🥔',
+    keywords: [
+      'potato', 'potatoes', 'fries', 'french fries', 'hash brown',
+      'mashed potato', 'baked potato', 'chips', 'wedges', 'tater',
+      'بطاطس', 'بطاطا', 'بطاطس مقلية'
+    ],
+  },
+  {
+    id: 'lemon',
+    label: 'Lemon',
+    labelAr: 'ليمون',
+    icon: '🍋',
+    keywords: [
+      'lemon', 'lime', 'citrus', 'lemonade', 'lemon juice', 'lemon zest',
+      'ليمون', 'حامض', 'ليموناضة', 'عصير ليمون'
+    ],
+  },
+  {
+    id: 'cucumber',
+    label: 'Cucumber',
+    labelAr: 'خيار',
+    icon: '🥒',
+    keywords: [
+      'cucumber', 'cucumbers', 'pickle', 'pickled', 'gherkin',
+      'خيار', 'مخلل'
+    ],
+  },
+  {
+    id: 'chocolate',
+    label: 'Chocolate',
+    labelAr: 'شوكولاتة',
+    icon: '🍫',
+    keywords: [
+      'chocolate', 'cocoa', 'cacao', 'brownie', 'nutella', 'mocha',
+      'chocolate chip', 'chocolate sauce', 'ganache', 'truffle',
+      'شوكولاتة', 'شوكولا', 'كاكاو', 'براوني', 'موكا'
+    ],
+  },
+  {
+    id: 'sesame',
+    label: 'Sesame',
+    labelAr: 'سمسم',
+    icon: '🫓',
+    keywords: [
+      'sesame', 'sesame seed', 'tahini', 'hummus', 'halva', 'halvah',
+      'sesame oil', 'za\'atar',
+      'سمسم', 'طحينة', 'حمص', 'حلاوة', 'زعتر'
+    ],
+  },
+  {
+    id: 'spinach',
+    label: 'Spinach',
+    labelAr: 'سبانخ',
+    icon: '🥬',
+    keywords: [
+      'spinach', 'spinach leaf', 'creamed spinach', 'spinach dip',
+      'سبانخ'
+    ],
+  },
+  {
+    id: 'lettuce',
+    label: 'Lettuce',
+    labelAr: 'خس',
+    icon: '🥗',
+    keywords: [
+      'lettuce', 'romaine', 'iceberg', 'salad greens', 'green salad',
+      'خس', 'سلطة خضراء'
+    ],
+  },
+  {
+    id: 'tuna',
+    label: 'Tuna',
+    labelAr: 'تونة',
+    icon: '🐟',
+    keywords: [
+      'tuna', 'tuna fish', 'tuna salad', 'tuna sandwich', 'tuna steak',
+      'تونة', 'تونا'
+    ],
+  },
+  {
+    id: 'hazelnut',
+    label: 'Hazelnut',
+    labelAr: 'بندق',
+    icon: '🌰',
+    keywords: [
+      'hazelnut', 'hazelnuts', 'nutella', 'hazelnut spread',
+      'hazelnut milk', 'hazelnut butter', 'gianduja', 'praline',
+      'بندق', 'نوتيلا', 'بندقة'
     ],
   },
 ]
 
 /**
  * detectAllergens - Checks if a text contains allergens for given allergy IDs
- *
- * This simulates AI analysis by doing keyword matching against the text.
- * It returns an array of matched allergens with details about which
- * keywords triggered the match.
- *
- * @param {string} text - The text to analyze (e.g., dish ingredients)
- * @param {string[]} selectedAllergyIds - Array of allergy IDs to check for
- * @returns {Array} Array of matched allergen objects with details
  */
 export function detectAllergens(text, selectedAllergyIds) {
-  // Convert to lowercase for case-insensitive matching
   const lowerText = text.toLowerCase()
   const found = []
 
-  // Check each allergy type against the text
   ALLERGY_TYPES.forEach((allergy) => {
-    // Only check allergies the user has selected
     if (selectedAllergyIds.includes(allergy.id)) {
-      // Find which keywords matched
       const matchedKeywords = allergy.keywords.filter((kw) =>
         lowerText.includes(kw.toLowerCase())
       )
-      // If any keywords matched, add to results
       if (matchedKeywords.length > 0) {
         found.push({
           allergyId: allergy.id,

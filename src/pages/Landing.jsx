@@ -68,7 +68,7 @@ export default function Landing() {
             <div>{t('landing.dishes')}</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-emerald-700">5</div>
+            <div className="text-2xl font-bold text-emerald-700">17</div>
             <div>{t('landing.allergyTypes')}</div>
           </div>
         </div>
