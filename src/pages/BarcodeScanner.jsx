@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext'
 import { lookupBarcode, isIngredientAllergen } from '../data/barcodeService'
 
 export default function BarcodeScanner() {
-  const { t, isAr } = useLanguage()
+  const { t, isAr, lang } = useLanguage()
 
   const [barcode, setBarcode] = useState('')
   const [result, setResult] = useState(null)
@@ -33,7 +33,7 @@ export default function BarcodeScanner() {
     setError(null)
 
     try {
-      const product = await lookupBarcode(barcode.trim(), selectedAllergies)
+      const product = await lookupBarcode(barcode.trim(), selectedAllergies, lang)
       if (product) {
         setResult(product)
       } else {
