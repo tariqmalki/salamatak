@@ -1,15 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { ALLERGY_TYPES } from '../data/allergens'
 import { useLanguage } from '../context/LanguageContext'
 import { lookupBarcode, isIngredientAllergen } from '../data/barcodeService'
 
-/**
- * Barcode Scanner - Real product lookup via Open Food Facts API
- *
- * Each scan triggers a fresh API call (no caching).
- * Falls back to local database if API is unavailable.
- * Highlights ingredients that match the user's allergies.
- */
 export default function BarcodeScanner() {
   const { t, isAr } = useLanguage()
 
@@ -18,17 +11,22 @@ export default function BarcodeScanner() {
   const [scanning, setScanning] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const [error, setError] = useState(null)
+  const [cameraActive, setCameraActive] = useState(false)
+  const [cameraError, setCameraError] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState(null)
+  const [detectingBarcode, setDetectingBarcode] = useState(false)
+
+  const videoRef = useRef(null)
+  const streamRef = useRef(null)
+  const canvasRef = useRef(null)
 
   const [selectedAllergies] = useState(() => {
     const saved = localStorage.getItem('salamatak-allergies')
     return saved ? JSON.parse(saved) : ['nuts']
   })
 
-  // Fresh lookup on every scan - no caching
   const handleScan = async () => {
     if (!barcode.trim()) return
-
-    // Clear all previous state for a clean scan
     setScanning(true)
     setNotFound(false)
     setResult(null)
@@ -36,20 +34,120 @@ export default function BarcodeScanner() {
 
     try {
       const product = await lookupBarcode(barcode.trim(), selectedAllergies)
-
       if (product) {
         setResult(product)
       } else {
         setNotFound(true)
       }
     } catch {
-      setError(isAr ? 'حدث خطأ أثناء البحث. حاول مرة أخرى.' : 'An error occurred while looking up the product. Please try again.')
+      setError(isAr ? 'حدث خطأ أثناء البحث. حاول مرة أخرى.' : 'An error occurred. Please try again.')
     } finally {
       setScanning(false)
     }
   }
 
-  // Real barcodes that exist in Open Food Facts + local fallbacks
+  // Open the device camera
+  const startCamera = async () => {
+    setCameraError(null)
+    setPhotoPreview(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      })
+      streamRef.current = stream
+      setCameraActive(true)
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.play()
+        }
+      }, 100)
+    } catch {
+      setCameraError(isAr ? 'لا يمكن الوصول للكاميرا. تأكد من إعطاء الإذن.' : 'Cannot access camera. Please grant permission.')
+    }
+  }
+
+  // Stop the camera
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+    setCameraActive(false)
+    setPhotoPreview(null)
+  }
+
+  // Capture a photo from the video feed
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(video, 0, 0)
+
+    const imageData = canvas.toDataURL('image/png')
+    setPhotoPreview(imageData)
+    detectBarcodeFromImage(canvas)
+  }
+
+  // Try to detect barcode from the captured image using BarcodeDetector API
+  const detectBarcodeFromImage = async (canvas) => {
+    setDetectingBarcode(true)
+
+    // Try native BarcodeDetector API (Chrome, Edge, Android)
+    if ('BarcodeDetector' in window) {
+      try {
+        const detector = new window.BarcodeDetector({
+          formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39']
+        })
+        const barcodes = await detector.detect(canvas)
+        if (barcodes.length > 0) {
+          const code = barcodes[0].rawValue
+          setBarcode(code)
+          stopCamera()
+          setDetectingBarcode(false)
+          return
+        }
+      } catch {
+        // BarcodeDetector failed, fall through
+      }
+    }
+
+    setDetectingBarcode(false)
+    // If detection failed, keep the photo and let user type manually
+  }
+
+  // Handle image file upload (for devices where camera stream doesn't work)
+  const handleFileCapture = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setPhotoPreview(URL.createObjectURL(file))
+    setDetectingBarcode(true)
+
+    // Try BarcodeDetector on the uploaded image
+    if ('BarcodeDetector' in window) {
+      try {
+        const bitmap = await createImageBitmap(file)
+        const detector = new window.BarcodeDetector({
+          formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39']
+        })
+        const barcodes = await detector.detect(bitmap)
+        if (barcodes.length > 0) {
+          setBarcode(barcodes[0].rawValue)
+          setDetectingBarcode(false)
+          return
+        }
+      } catch {
+        // Fall through
+      }
+    }
+
+    setDetectingBarcode(false)
+  }
+
   const sampleBarcodes = [
     { code: '5000159484695', label: isAr ? 'كيت كات' : 'KitKat' },
     { code: '3017620422003', label: isAr ? 'نوتيلا' : 'Nutella' },
@@ -63,19 +161,97 @@ export default function BarcodeScanner() {
 
   const hasAllergens = result?.matchedAllergenIds?.length > 0
   const riskLevel = !result ? 'green' : hasAllergens ? 'red' : 'green'
-
-  const riskColors = {
-    red: 'bg-red-50 border-red-300',
-    green: 'bg-green-50 border-green-300',
-  }
+  const riskColors = { red: 'bg-red-50 border-red-300', green: 'bg-green-50 border-green-300' }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-emerald-800 mb-2">{t('barcode.title')}</h1>
       <p className="text-gray-500 mb-6">{t('barcode.subtitle')}</p>
 
-      {/* Barcode input */}
+      {/* Camera section */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
+        {/* Camera buttons */}
+        {!cameraActive && (
+          <div className="flex gap-3 mb-4">
+            <button
+              onClick={startCamera}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span className="text-xl">📸</span>
+              {isAr ? 'افتح الكاميرا' : 'Open Camera'}
+            </button>
+            <label className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2">
+              <span className="text-xl">🖼️</span>
+              {isAr ? 'رفع صورة باركود' : 'Upload Barcode Photo'}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileCapture}
+                className="hidden"
+              />
+            </label>
+          </div>
+        )}
+
+        {/* Camera error */}
+        {cameraError && (
+          <div className="bg-red-50 rounded-xl p-3 mb-4 text-center">
+            <p className="text-red-600 text-sm">{cameraError}</p>
+          </div>
+        )}
+
+        {/* Live camera feed */}
+        {cameraActive && (
+          <div className="mb-4">
+            <div className="relative rounded-xl overflow-hidden bg-black">
+              <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-xl" />
+              {/* Scan target overlay */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-64 h-24 border-2 border-white/70 rounded-lg">
+                  <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500/60 animate-pulse" />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-3">
+              <button
+                onClick={capturePhoto}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span className="text-xl">📷</span>
+                {isAr ? 'التقط صورة' : 'Take Photo'}
+              </button>
+              <button
+                onClick={stopCamera}
+                className="px-6 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 rounded-xl transition-all cursor-pointer"
+              >
+                {isAr ? 'إغلاق' : 'Close'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Photo preview after capture */}
+        {photoPreview && !cameraActive && (
+          <div className="mb-4">
+            <img src={photoPreview} alt="Captured barcode" className="w-full max-h-48 object-contain rounded-xl border border-gray-200" />
+            {detectingBarcode && (
+              <p className="text-center text-emerald-600 text-sm mt-2 animate-pulse">
+                {isAr ? '🔍 جاري اكتشاف الباركود...' : '🔍 Detecting barcode...'}
+              </p>
+            )}
+            {!detectingBarcode && !barcode && (
+              <p className="text-center text-gray-500 text-sm mt-2">
+                {isAr ? 'لم يتم اكتشاف باركود تلقائياً. أدخل الرقم يدوياً أدناه.' : 'Barcode not detected automatically. Enter the number manually below.'}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Hidden canvas for image processing */}
+        <canvas ref={canvasRef} className="hidden" />
+
+        {/* Manual barcode input */}
         <div className="flex gap-3">
           <input
             type="text"
@@ -120,7 +296,7 @@ export default function BarcodeScanner() {
         </div>
       )}
 
-      {/* Error message */}
+      {/* Error */}
       {error && (
         <div className="bg-red-50 rounded-2xl p-6 border border-red-200 text-center mb-6">
           <div className="text-4xl mb-2">⚠️</div>
@@ -148,17 +324,11 @@ export default function BarcodeScanner() {
             {/* Product header */}
             <div className="flex items-start gap-4 mb-5">
               {result.image && (
-                <img
-                  src={result.image}
-                  alt={result.name}
-                  className="w-20 h-20 rounded-xl object-cover border border-gray-200 shrink-0"
-                />
+                <img src={result.image} alt={result.name} className="w-20 h-20 rounded-xl object-cover border border-gray-200 shrink-0" />
               )}
               <div className="flex-1 min-w-0">
                 <h3 className="text-xl font-bold text-gray-800">{result.name}</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  {t('barcode.brand')} {result.brand}
-                </p>
+                <p className="text-sm text-gray-500 mt-1">{t('barcode.brand')} {result.brand}</p>
                 <span className="inline-block mt-2 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
                   {result.source === 'api'
                     ? (isAr ? '🌐 بيانات حية من Open Food Facts' : '🌐 Live data from Open Food Facts')
@@ -170,7 +340,7 @@ export default function BarcodeScanner() {
               </span>
             </div>
 
-            {/* Ingredients list with highlighting */}
+            {/* Ingredients */}
             {result.ingredients.length > 0 && (
               <div className="mb-5">
                 <h4 className="font-semibold text-gray-700 mb-2">{t('barcode.ingredientsLabel')}</h4>
@@ -180,15 +350,13 @@ export default function BarcodeScanner() {
                     const isDangerous = matchedAllergyId !== null
                     const allergyData = isDangerous ? ALLERGY_TYPES.find((a) => a.id === matchedAllergyId) : null
                     return (
-                      <span
-                        key={`${ingredient}-${idx}`}
+                      <span key={`${ingredient}-${idx}`}
                         className={`px-3 py-1.5 rounded-full text-sm font-medium ${
                           isDangerous
                             ? 'bg-red-200 text-red-800 border-2 border-red-400 ring-2 ring-red-200'
                             : 'bg-white text-gray-600 border border-gray-200'
-                        }`}
-                      >
-                        {isDangerous && <span className="mr-1">{allergyData?.icon} 🔴</span>}
+                        }`}>
+                        {isDangerous && <span className={isAr ? 'ml-1' : 'mr-1'}>{allergyData?.icon} 🔴</span>}
                         {ingredient}
                       </span>
                     )
