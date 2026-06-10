@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { ALLERGY_TYPES } from '../data/allergens'
 import { useLanguage } from '../context/LanguageContext'
-import { analyzeImage, checkIngredientsForAllergens } from '../data/imageAnalysisService'
+import { analyzeImage, matchAllAllergens } from '../data/imageAnalysisService'
 
 /**
- * Scanner - Analyzes the ACTUAL uploaded food image for ingredients
+ * Scanner - Multi-region image analysis with exhaustive allergy matching
  *
- * Pipeline: Image upload → Canvas pixel analysis → Color-based ingredient
- * detection → Allergy comparison → Highlighted results
+ * Both "Take Photo" and "Choose from Gallery" feed into the exact same
+ * analyzeImage → matchAllAllergens pipeline. No separate code paths.
  *
- * NO mock meals. NO restaurant data. NO predefined lists.
- * Each image is analyzed individually based on its visual content.
+ * Output always contains three sections:
+ *   1. Detected Allergens (all matched, never skipped)
+ *   2. Confirmed Ingredients (high confidence)
+ *   3. Possible Ingredients (lower confidence)
  */
 export default function Scanner() {
   const { t, isAr } = useLanguage()
@@ -21,31 +23,43 @@ export default function Scanner() {
   })
   const [imagePreview, setImagePreview] = useState(null)
   const [scanning, setScanning] = useState(false)
-  const [analysisResult, setAnalysisResult] = useState(null)
+  const [result, setResult] = useState(null)
 
+  // Shared handler — identical for camera and gallery
   const handleImageUpload = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => setImagePreview(reader.result)
-      reader.readAsDataURL(file)
-      setAnalysisResult(null)
-    }
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onloadend = () => setImagePreview(reader.result)
+    reader.readAsDataURL(file)
+    setResult(null)
   }
 
-  // Analyze the ACTUAL uploaded image - no mock data
-  const handleScan = async () => {
+  const handleAnalyze = async () => {
     if (!imagePreview) return
     setScanning(true)
-    setAnalysisResult(null)
+    setResult(null)
 
-    // Step 1: Analyze the image pixels to detect food ingredients
-    const { detectedFoods } = await analyzeImage(imagePreview)
+    // Step 1: Multi-region image analysis
+    const { confirmed, possible } = await analyzeImage(imagePreview)
 
-    // Step 2: Compare detected ingredients against user's allergies
-    const result = checkIngredientsForAllergens(detectedFoods, selectedAllergies)
+    // Step 2: Exhaustive allergy matching on ALL ingredients
+    const confirmedResult = matchAllAllergens(confirmed, selectedAllergies)
+    const possibleResult = matchAllAllergens(possible, selectedAllergies)
 
-    setAnalysisResult(result)
+    // Step 3: Merge all unique detected allergens from both tiers
+    const allergenMap = new Map()
+    for (const a of confirmedResult.allDetectedAllergens) allergenMap.set(a.id, { ...a, tier: 'confirmed' })
+    for (const a of possibleResult.allDetectedAllergens) {
+      if (!allergenMap.has(a.id)) allergenMap.set(a.id, { ...a, tier: 'possible' })
+    }
+
+    setResult({
+      confirmed: confirmedResult.ingredients,
+      possible: possibleResult.ingredients,
+      allAllergens: Array.from(allergenMap.values()),
+      hasAnyAllergen: allergenMap.size > 0,
+    })
     setScanning(false)
   }
 
@@ -55,10 +69,58 @@ export default function Scanner() {
     )
   }
 
-  const clearAll = () => {
-    setImagePreview(null)
-    setAnalysisResult(null)
-  }
+  const clearAll = () => { setImagePreview(null); setResult(null) }
+
+  // Renders a single ingredient row
+  const IngredientRow = ({ item, tier }) => (
+    <div className={`rounded-xl p-4 border-2 ${
+      item.isDangerous
+        ? 'bg-red-50 border-red-300 ring-2 ring-red-200'
+        : tier === 'confirmed'
+          ? 'bg-gray-50 border-gray-200'
+          : 'bg-yellow-50/50 border-yellow-200'
+    }`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <span className={`text-2xl shrink-0 ${item.isDangerous ? 'animate-pulse' : ''}`}>
+            {item.isDangerous ? '🔴' : tier === 'confirmed' ? '🟢' : '🟡'}
+          </span>
+          <div>
+            <div className={`font-semibold ${item.isDangerous ? 'text-red-800' : 'text-gray-800'}`}>
+              {isAr ? item.nameAr : item.name}
+            </div>
+            <div className="text-sm text-gray-400">{isAr ? item.name : item.nameAr}</div>
+            {item.isDangerous && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {item.matchedAllergies.map((a) => (
+                  <span key={a.id} className="text-xs bg-red-600 text-white px-2 py-1 rounded-full font-bold">
+                    {a.icon} {isAr ? a.labelAr : a.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="shrink-0 text-center">
+          <div className="text-xs text-gray-400 mb-1">{isAr ? 'الثقة' : 'Conf.'}</div>
+          <div className="w-14 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full ${item.isDangerous ? 'bg-red-500' : tier === 'confirmed' ? 'bg-emerald-500' : 'bg-yellow-500'}`}
+              style={{ width: `${item.confidence}%` }} />
+          </div>
+          <div className="text-xs text-gray-500 mt-0.5">{item.confidence}%</div>
+        </div>
+      </div>
+      {item.isDangerous && (
+        <div className="mt-3 bg-red-100 rounded-lg p-2 border border-red-200">
+          <p className="text-red-700 text-sm font-medium">
+            {isAr
+              ? `⚠️ تحتوي على ${item.nameAr}، وأنت لديك حساسية منها.`
+              : `⚠️ Contains ${item.name}, which you are allergic to.`}
+          </p>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -70,38 +132,32 @@ export default function Scanner() {
         <h3 className="font-semibold text-gray-700 mb-3">{t('scanner.checkFor')}</h3>
         <div className="flex flex-wrap gap-2">
           {ALLERGY_TYPES.map((allergy) => (
-            <button
-              key={allergy.id}
-              onClick={() => toggleAllergy(allergy.id)}
+            <button key={allergy.id} onClick={() => toggleAllergy(allergy.id)}
               className={`px-4 py-2 rounded-full text-sm font-medium border transition-all cursor-pointer ${
                 selectedAllergies.includes(allergy.id)
                   ? 'bg-emerald-600 text-white border-emerald-600'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300'
-              }`}
-            >
+              }`}>
               {allergy.icon} {isAr ? allergy.labelAr : allergy.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Image upload area */}
+      {/* Image upload — both buttons use the SAME handler */}
       <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 mb-6 text-center">
         {imagePreview ? (
           <div>
-            <img src={imagePreview} alt="Uploaded meal" className="max-h-72 mx-auto rounded-xl mb-4 shadow-md" />
+            <img src={imagePreview} alt="Meal" className="max-h-72 mx-auto rounded-xl mb-4 shadow-md" />
             <div className="flex gap-3 justify-center flex-wrap">
-              <button
-                onClick={handleScan}
-                disabled={scanning || selectedAllergies.length === 0}
-                className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white font-bold px-8 py-3 rounded-full transition-all cursor-pointer"
-              >
-                {scanning ? (isAr ? '🔍 جاري التحليل...' : '🔍 Analyzing...') : (isAr ? '🔍 تحليل الصورة' : '🔍 Analyze Image')}
+              <button onClick={handleAnalyze} disabled={scanning || selectedAllergies.length === 0}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white font-bold px-8 py-3 rounded-full transition-all cursor-pointer">
+                {scanning
+                  ? (isAr ? '🔍 جاري التحليل...' : '🔍 Analyzing...')
+                  : (isAr ? '🔍 تحليل الصورة' : '🔍 Analyze Image')}
               </button>
-              <button
-                onClick={clearAll}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium px-6 py-3 rounded-full transition-all cursor-pointer"
-              >
+              <button onClick={clearAll}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium px-6 py-3 rounded-full transition-all cursor-pointer">
                 {t('common.clear')}
               </button>
             </div>
@@ -130,53 +186,74 @@ export default function Scanner() {
         <div className="text-center py-8">
           <div className="text-5xl animate-pulse mb-4">🤖</div>
           <p className="text-emerald-700 font-medium">{isAr ? 'جاري تحليل صورة الوجبة...' : 'Analyzing meal image...'}</p>
-          <p className="text-gray-400 text-sm">{isAr ? 'اكتشاف المكونات من الصورة والتحقق من المسببات' : 'Detecting ingredients from image and checking for allergens'}</p>
+          <p className="text-gray-400 text-sm">{isAr ? 'فحص 16 منطقة في الصورة واكتشاف المكونات' : 'Scanning 16 image regions and detecting ingredients'}</p>
           <div className="mt-4 flex justify-center gap-1">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
             ))}
           </div>
         </div>
       )}
 
-      {/* Analysis results */}
-      {analysisResult && !scanning && (
-        <div>
-          {/* Overall verdict */}
-          {analysisResult.hasAnyAllergen ? (
-            <div className="bg-red-50 rounded-2xl p-5 border-2 border-red-300 mb-6">
-              <div className="flex items-center gap-3 mb-2">
+      {/* ── Results ── */}
+      {result && !scanning && (
+        <div className="space-y-6">
+
+          {/* Section 1: ALL Detected Allergens (global summary) */}
+          {result.hasAnyAllergen ? (
+            <div className="bg-red-50 rounded-2xl p-5 border-2 border-red-300">
+              <div className="flex items-center gap-3 mb-4">
                 <span className="text-4xl">🚫</span>
                 <div>
                   <h3 className="text-xl font-bold text-red-700">
-                    {isAr ? 'تحذير! تم اكتشاف مسببات حساسية' : 'Warning! Allergens detected'}
+                    {isAr
+                      ? `تحذير! تم اكتشاف ${result.allAllergens.length} مسبب(ات) حساسية`
+                      : `Warning! ${result.allAllergens.length} allergen(s) detected`}
                   </h3>
                   <p className="text-red-600 text-sm">
-                    {isAr
-                      ? 'هذه الوجبة تحتوي على مكونات لديك حساسية منها. لا تأكل هذه الوجبة.'
-                      : 'This meal contains ingredients you are allergic to. Do NOT eat this meal.'}
+                    {isAr ? 'لا تأكل هذه الوجبة.' : 'Do NOT eat this meal.'}
                   </p>
                 </div>
               </div>
+              {/* Show EVERY detected allergen separately */}
+              <div className="space-y-2">
+                {result.allAllergens.map((a) => (
+                  <div key={a.id} className="flex items-center gap-3 bg-red-100 rounded-xl p-3 border border-red-200">
+                    <span className="text-2xl">{a.icon}</span>
+                    <div className="flex-1">
+                      <span className="font-bold text-red-800">{isAr ? a.labelAr : a.label}</span>
+                      <span className="text-red-600 text-sm mx-2">—</span>
+                      <span className="text-red-600 text-sm">
+                        {isAr
+                          ? `⚠️ تم اكتشاف ${a.labelAr} في هذه الوجبة`
+                          : `⚠️ ${a.label} detected in this meal`}
+                      </span>
+                    </div>
+                    <span className="text-xs px-2 py-1 rounded-full bg-red-700 text-white font-bold">
+                      {a.tier === 'confirmed'
+                        ? (isAr ? 'مؤكد' : 'Confirmed')
+                        : (isAr ? 'محتمل' : 'Possible')}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-          ) : analysisResult.ingredients.length > 0 ? (
-            <div className="bg-green-50 rounded-2xl p-5 border-2 border-green-300 mb-6">
+          ) : (result.confirmed.length > 0 || result.possible.length > 0) ? (
+            <div className="bg-green-50 rounded-2xl p-5 border-2 border-green-300">
               <div className="flex items-center gap-3">
                 <span className="text-4xl">✅</span>
                 <div>
                   <h3 className="text-xl font-bold text-green-700">
-                    {isAr ? 'لم يتم اكتشاف مسببات حساسية' : 'No allergens detected in this meal'}
+                    {isAr ? 'لم يتم اكتشاف مسببات حساسية' : 'No allergens detected'}
                   </h3>
                   <p className="text-green-600 text-sm">
-                    {isAr
-                      ? 'بناءً على تحليل الصورة، لم يتم العثور على مكونات تسبب لك حساسية.'
-                      : 'Based on image analysis, no ingredients matching your allergies were found.'}
+                    {isAr ? 'لم يتم العثور على مكونات تسبب لك حساسية.' : 'No ingredients matching your allergies were found.'}
                   </p>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="bg-yellow-50 rounded-2xl p-5 border-2 border-yellow-300 mb-6">
+            <div className="bg-yellow-50 rounded-2xl p-5 border-2 border-yellow-300">
               <div className="flex items-center gap-3">
                 <span className="text-4xl">⚠️</span>
                 <div>
@@ -184,95 +261,53 @@ export default function Scanner() {
                     {isAr ? 'لم يتم التعرف على مكونات واضحة' : 'No clear ingredients detected'}
                   </h3>
                   <p className="text-yellow-600 text-sm">
-                    {isAr
-                      ? 'حاول التقاط صورة أوضح للوجبة مع إضاءة جيدة.'
-                      : 'Try taking a clearer photo of the meal with good lighting.'}
+                    {isAr ? 'حاول التقاط صورة أوضح.' : 'Try a clearer photo with good lighting.'}
                   </p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Detected ingredients list */}
-          {analysisResult.ingredients.length > 0 && (
+          {/* Section 2: Confirmed Ingredients */}
+          {result.confirmed.length > 0 && (
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <h3 className="font-bold text-gray-800 mb-4 text-lg">
-                {isAr ? '🍽️ المكونات المكتشفة من الصورة:' : '🍽️ Ingredients detected from image:'}
+              <h3 className="font-bold text-gray-800 mb-4 text-lg flex items-center gap-2">
+                <span>🟢</span>
+                {isAr ? 'مكونات مؤكدة' : 'Confirmed Ingredients'}
+                <span className="text-sm font-normal text-gray-400">({result.confirmed.length})</span>
               </h3>
-
               <div className="space-y-3">
-                {analysisResult.ingredients.map((item, index) => (
-                  <div
-                    key={index}
-                    className={`rounded-xl p-4 border-2 transition-all ${
-                      item.isDangerous
-                        ? 'bg-red-50 border-red-300 ring-2 ring-red-200'
-                        : 'bg-gray-50 border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {/* Danger indicator */}
-                        <span className={`text-2xl shrink-0 ${item.isDangerous ? 'animate-pulse' : ''}`}>
-                          {item.isDangerous ? '🔴' : '🟢'}
-                        </span>
-                        <div>
-                          <div className={`font-semibold ${item.isDangerous ? 'text-red-800' : 'text-gray-800'}`}>
-                            {isAr ? item.nameAr : item.name}
-                          </div>
-                          <div className="text-sm text-gray-400">
-                            {isAr ? item.name : item.nameAr}
-                          </div>
-                          {/* Show which allergies this ingredient triggers */}
-                          {item.isDangerous && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {item.matchedAllergies.map((a) => (
-                                <span key={a.id} className="text-xs bg-red-600 text-white px-2 py-1 rounded-full font-bold">
-                                  {a.icon} {isAr ? a.labelAr : a.label}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Confidence bar */}
-                      <div className="shrink-0 text-center">
-                        <div className="text-xs text-gray-400 mb-1">{isAr ? 'الثقة' : 'Confidence'}</div>
-                        <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${item.isDangerous ? 'bg-red-500' : 'bg-emerald-500'}`}
-                            style={{ width: `${item.confidence}%` }}
-                          />
-                        </div>
-                        <div className="text-xs text-gray-500 mt-0.5">{item.confidence}%</div>
-                      </div>
-                    </div>
-
-                    {/* Warning message for dangerous ingredients */}
-                    {item.isDangerous && (
-                      <div className="mt-3 bg-red-100 rounded-lg p-2 border border-red-200">
-                        <p className="text-red-700 text-sm font-medium">
-                          {isAr
-                            ? `⚠️ هذه الوجبة تحتوي على ${item.nameAr}، وأنت لديك حساسية منها. لا تأكل هذه الوجبة.`
-                            : `⚠️ This meal contains ${item.name}, which you are allergic to. Do NOT eat this meal.`}
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                {result.confirmed.map((item) => (
+                  <IngredientRow key={item.id} item={item} tier="confirmed" />
                 ))}
-              </div>
-
-              {/* Analysis note */}
-              <div className="mt-4 bg-gray-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-gray-400">
-                  {isAr
-                    ? '📊 التحليل مبني على المحتوى المرئي للصورة. للتأكد، اسأل موظفي المطعم عن المكونات.'
-                    : '📊 Analysis is based on the visual content of the image. For certainty, ask restaurant staff about ingredients.'}
-                </p>
               </div>
             </div>
           )}
+
+          {/* Section 3: Possible Ingredients */}
+          {result.possible.length > 0 && (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-yellow-100">
+              <h3 className="font-bold text-gray-800 mb-4 text-lg flex items-center gap-2">
+                <span>🟡</span>
+                {isAr ? 'مكونات محتملة' : 'Possible Ingredients'}
+                <span className="text-sm font-normal text-gray-400">({result.possible.length})</span>
+              </h3>
+              <div className="space-y-3">
+                {result.possible.map((item) => (
+                  <IngredientRow key={item.id} item={item} tier="possible" />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Disclaimer */}
+          <div className="bg-gray-50 rounded-xl p-3 text-center">
+            <p className="text-xs text-gray-400">
+              {isAr
+                ? '📊 التحليل مبني على المحتوى المرئي للصورة. للتأكد، اسأل موظفي المطعم عن المكونات.'
+                : '📊 Analysis is based on the visual content of the image. For certainty, ask restaurant staff about ingredients.'}
+            </p>
+          </div>
         </div>
       )}
     </div>
