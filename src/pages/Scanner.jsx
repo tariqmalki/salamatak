@@ -186,7 +186,7 @@ export default function Scanner() {
         <div className="text-center py-8">
           <div className="text-5xl animate-pulse mb-4">🤖</div>
           <p className="text-emerald-700 font-medium">{isAr ? 'جاري تحليل صورة الوجبة...' : 'Analyzing meal image...'}</p>
-          <p className="text-gray-400 text-sm">{isAr ? 'فحص 16 منطقة في الصورة واكتشاف المكونات' : 'Scanning 16 image regions and detecting ingredients'}</p>
+          <p className="text-gray-400 text-sm">{isAr ? 'فحص 16 منطقة وتحليل كل بكسل لاكتشاف المكونات' : 'Scanning 16 regions, analyzing each pixel to detect ingredients'}</p>
           <div className="mt-4 flex justify-center gap-1">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
