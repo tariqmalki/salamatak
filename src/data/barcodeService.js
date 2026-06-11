@@ -1,140 +1,198 @@
 import { ALLERGY_TYPES } from './allergens'
 
 /**
- * barcodeService.js - Bilingual product lookup via Open Food Facts API
+ * barcodeService.js - Barcode product lookup with Arabic-first ingredients
  *
- * Accepts a `lang` parameter ('ar' or 'en') and returns product data
- * in the matching language. Falls back to the other language if
- * translation is unavailable.
+ * Ingredients are ALWAYS returned in Arabic regardless of app language.
+ * English raw text is kept separately for allergy keyword matching.
+ * Retries API up to 2 times on failure before falling back to local DB.
  */
 
-// Common ingredient translations (English → Arabic)
+// Comprehensive English → Arabic ingredient dictionary
 const INGREDIENT_AR = {
-  'sugar': 'سكر', 'salt': 'ملح', 'water': 'ماء', 'milk': 'حليب',
+  'sugar': 'سكر', 'cane sugar': 'سكر القصب', 'brown sugar': 'سكر بني',
+  'powdered sugar': 'سكر بودرة', 'icing sugar': 'سكر ناعم',
+  'salt': 'ملح', 'sea salt': 'ملح البحر', 'iodized salt': 'ملح معالج باليود',
+  'water': 'ماء', 'mineral water': 'ماء معدني',
+  'milk': 'حليب', 'whole milk': 'حليب كامل الدسم', 'skim milk': 'حليب منزوع الدسم',
   'milk powder': 'حليب مجفف', 'whole milk powder': 'حليب مجفف كامل',
-  'skimmed milk powder': 'حليب مجفف منزوع الدسم',
+  'skimmed milk powder': 'حليب مجفف منزوع الدسم', 'condensed milk': 'حليب مكثف',
+  'buttermilk': 'لبن', 'whey': 'مصل اللبن', 'whey powder': 'مسحوق مصل اللبن',
+  'lactose': 'لاكتوز', 'casein': 'كازين',
   'cocoa': 'كاكاو', 'cocoa butter': 'زبدة الكاكاو', 'cocoa mass': 'كتلة الكاكاو',
-  'cocoa powder': 'مسحوق الكاكاو',
+  'cocoa powder': 'مسحوق الكاكاو', 'cocoa paste': 'عجينة الكاكاو',
   'chocolate': 'شوكولاتة', 'dark chocolate': 'شوكولاتة داكنة',
+  'milk chocolate': 'شوكولاتة بالحليب', 'white chocolate': 'شوكولاتة بيضاء',
   'wheat flour': 'دقيق القمح', 'flour': 'دقيق', 'wheat': 'قمح',
-  'palm oil': 'زيت النخيل', 'sunflower oil': 'زيت دوار الشمس',
-  'vegetable oil': 'زيت نباتي', 'soybean oil': 'زيت فول الصويا',
-  'rapeseed oil': 'زيت الكانولا', 'olive oil': 'زيت الزيتون',
-  'butter': 'زبدة', 'cream': 'كريمة', 'cheese': 'جبن',
-  'egg': 'بيض', 'eggs': 'بيض', 'egg white': 'بياض البيض',
-  'egg yolk': 'صفار البيض',
-  'peanut': 'فول سوداني', 'peanuts': 'فول سوداني',
-  'hazelnut': 'بندق', 'hazelnuts': 'بندق',
-  'almond': 'لوز', 'almonds': 'لوز',
-  'walnut': 'جوز', 'walnuts': 'جوز',
-  'cashew': 'كاجو', 'pistachio': 'فستق',
-  'soy': 'صويا', 'soya': 'صويا', 'soy sauce': 'صوص الصويا',
+  'enriched flour': 'دقيق مدعم', 'self-raising flour': 'دقيق ذاتي الرفع',
+  'semolina': 'سميد', 'durum wheat': 'قمح صلب',
+  'palm oil': 'زيت النخيل', 'palm fat': 'دهن النخيل',
+  'sunflower oil': 'زيت دوار الشمس', 'sunflower lecithin': 'ليسيثين دوار الشمس',
+  'vegetable oil': 'زيت نباتي', 'vegetable fat': 'دهن نباتي',
+  'soybean oil': 'زيت فول الصويا', 'canola oil': 'زيت الكانولا',
+  'rapeseed oil': 'زيت الكانولا', 'coconut oil': 'زيت جوز الهند',
+  'olive oil': 'زيت الزيتون', 'corn oil': 'زيت الذرة',
+  'butter': 'زبدة', 'butter oil': 'زيت الزبدة', 'ghee': 'سمن',
+  'cream': 'كريمة', 'heavy cream': 'كريمة ثقيلة', 'sour cream': 'كريمة حامضة',
+  'cheese': 'جبن', 'cream cheese': 'جبن كريمي', 'cheddar': 'شيدر',
+  'mozzarella': 'موزاريلا', 'parmesan': 'بارميزان', 'yogurt': 'زبادي',
+  'egg': 'بيض', 'eggs': 'بيض', 'egg white': 'بياض البيض', 'egg powder': 'مسحوق البيض',
+  'egg yolk': 'صفار البيض', 'dried egg': 'بيض مجفف', 'whole egg': 'بيض كامل',
+  'peanut': 'فول سوداني', 'peanuts': 'فول سوداني', 'peanut butter': 'زبدة الفول السوداني',
+  'hazelnut': 'بندق', 'hazelnuts': 'بندق', 'hazelnut paste': 'معجون البندق',
+  'almond': 'لوز', 'almonds': 'لوز', 'almond paste': 'معجون اللوز',
+  'walnut': 'جوز', 'walnuts': 'جوز', 'cashew': 'كاجو', 'cashews': 'كاجو',
+  'pistachio': 'فستق', 'pistachios': 'فستق', 'macadamia': 'مكاديميا',
+  'pecan': 'بيكان', 'pecans': 'بيكان', 'nut': 'مكسرات', 'nuts': 'مكسرات',
+  'tree nuts': 'مكسرات شجرية', 'mixed nuts': 'مكسرات مشكلة',
+  'soy': 'صويا', 'soya': 'صويا', 'soybeans': 'فول الصويا',
+  'soy sauce': 'صوص الصويا', 'soy protein': 'بروتين الصويا',
   'soy lecithin': 'ليسيثين الصويا', 'soya lecithin': 'ليسيثين الصويا',
-  'tofu': 'توفو',
-  'rice': 'أرز', 'rice flour': 'دقيق الأرز',
-  'corn': 'ذرة', 'corn starch': 'نشا الذرة', 'maize': 'ذرة',
+  'soy flour': 'دقيق الصويا', 'tofu': 'توفو', 'edamame': 'إدامامي',
+  'rice': 'أرز', 'rice flour': 'دقيق الأرز', 'rice starch': 'نشا الأرز',
+  'corn': 'ذرة', 'corn starch': 'نشا الذرة', 'cornstarch': 'نشا الذرة',
+  'corn syrup': 'شراب الذرة', 'maize': 'ذرة', 'maize starch': 'نشا الذرة',
   'potato': 'بطاطس', 'potatoes': 'بطاطس', 'potato starch': 'نشا البطاطس',
-  'tomato': 'طماطم', 'tomato paste': 'معجون طماطم',
-  'onion': 'بصل', 'garlic': 'ثوم',
-  'lemon': 'ليمون', 'lemon juice': 'عصير ليمون', 'citric acid': 'حمض الليمون',
-  'vinegar': 'خل', 'mustard': 'خردل',
-  'sesame': 'سمسم', 'sesame seeds': 'بذور السمسم', 'tahini': 'طحينة',
-  'fish': 'سمك', 'tuna': 'تونة', 'salmon': 'سلمون',
-  'shrimp': 'ربيان', 'seafood': 'مأكولات بحرية',
-  'chicken': 'دجاج', 'beef': 'لحم بقر', 'meat': 'لحم',
-  'gelatin': 'جيلاتين', 'honey': 'عسل',
-  'vanilla': 'فانيلا', 'cinnamon': 'قرفة', 'pepper': 'فلفل',
-  'spices': 'بهارات', 'herbs': 'أعشاب',
-  'yeast': 'خميرة', 'baking powder': 'بيكنغ باودر',
-  'emulsifier': 'مستحلب', 'stabilizer': 'مثبت', 'preservative': 'مادة حافظة',
+  'potato flakes': 'رقائق البطاطس',
+  'tomato': 'طماطم', 'tomato paste': 'معجون طماطم', 'tomato powder': 'مسحوق الطماطم',
+  'tomato sauce': 'صوص الطماطم', 'tomato puree': 'بيوريه الطماطم',
+  'onion': 'بصل', 'onion powder': 'مسحوق البصل',
+  'garlic': 'ثوم', 'garlic powder': 'مسحوق الثوم',
+  'lemon': 'ليمون', 'lemon juice': 'عصير ليمون', 'lemon peel': 'قشر الليمون',
+  'lime': 'ليمون أخضر', 'citric acid': 'حمض الليمون', 'citrus': 'حمضيات',
+  'vinegar': 'خل', 'white vinegar': 'خل أبيض', 'apple cider vinegar': 'خل التفاح',
+  'mustard': 'خردل', 'mustard seed': 'بذور الخردل',
+  'sesame': 'سمسم', 'sesame seeds': 'بذور السمسم', 'sesame oil': 'زيت السمسم',
+  'tahini': 'طحينة', 'hummus': 'حمص',
+  'fish': 'سمك', 'tuna': 'تونة', 'tuna fish': 'سمك التونة',
+  'salmon': 'سلمون', 'anchovy': 'أنشوجة', 'sardine': 'سردين',
+  'shrimp': 'ربيان', 'prawns': 'جمبري', 'seafood': 'مأكولات بحرية',
+  'crab': 'سلطعون', 'lobster': 'كركند', 'squid': 'حبار', 'calamari': 'كاليماري',
+  'chicken': 'دجاج', 'chicken meat': 'لحم دجاج',
+  'beef': 'لحم بقر', 'meat': 'لحم', 'lamb': 'لحم غنم',
+  'pork': 'لحم خنزير', 'bacon': 'لحم مقدد',
+  'gelatin': 'جيلاتين', 'collagen': 'كولاجين',
+  'honey': 'عسل', 'maple syrup': 'شراب القيقب', 'molasses': 'دبس',
+  'vanilla': 'فانيلا', 'vanilla extract': 'خلاصة الفانيلا', 'vanillin': 'فانيلين',
+  'cinnamon': 'قرفة', 'ginger': 'زنجبيل', 'turmeric': 'كركم',
+  'pepper': 'فلفل', 'black pepper': 'فلفل أسود', 'white pepper': 'فلفل أبيض',
+  'chili': 'فلفل حار', 'paprika': 'بابريكا', 'cumin': 'كمون',
+  'cardamom': 'هيل', 'clove': 'قرنفل', 'nutmeg': 'جوزة الطيب',
+  'saffron': 'زعفران', 'thyme': 'زعتر', 'oregano': 'أوريغانو',
+  'basil': 'ريحان', 'parsley': 'بقدونس', 'mint': 'نعناع',
+  'spices': 'بهارات', 'herbs': 'أعشاب', 'seasoning': 'توابل',
+  'yeast': 'خميرة', 'baking powder': 'بيكنغ باودر', 'baking soda': 'بيكربونات الصوديوم',
+  'emulsifier': 'مستحلب', 'emulsifiers': 'مستحلبات',
+  'stabilizer': 'مثبت', 'stabilizers': 'مثبتات',
+  'preservative': 'مادة حافظة', 'preservatives': 'مواد حافظة',
+  'antioxidant': 'مضاد أكسدة', 'antioxidants': 'مضادات الأكسدة',
   'artificial flavor': 'نكهة صناعية', 'natural flavor': 'نكهة طبيعية',
-  'food coloring': 'ملون غذائي', 'caramel': 'كراميل',
-  'glucose': 'جلوكوز', 'fructose': 'فركتوز', 'lactose': 'لاكتوز',
-  'maltodextrin': 'مالتوديكسترين', 'starch': 'نشا',
-  'strawberry': 'فراولة', 'mango': 'مانجو', 'banana': 'موز',
-  'apple': 'تفاح', 'orange': 'برتقال',
+  'flavoring': 'منكهات', 'flavourings': 'منكهات', 'aroma': 'عطر',
+  'food coloring': 'ملون غذائي', 'color': 'لون', 'colours': 'ألوان',
+  'caramel': 'كراميل', 'caramel color': 'لون الكراميل',
+  'glucose': 'جلوكوز', 'glucose syrup': 'شراب الجلوكوز',
+  'fructose': 'فركتوز', 'high fructose corn syrup': 'شراب الذرة عالي الفركتوز',
+  'dextrose': 'دكستروز', 'sucrose': 'سكروز', 'invert sugar': 'سكر محول',
+  'maltodextrin': 'مالتوديكسترين', 'starch': 'نشا', 'modified starch': 'نشا معدل',
+  'pectin': 'بكتين', 'agar': 'أجار', 'carrageenan': 'كاراجينان',
+  'guar gum': 'صمغ الغوار', 'xanthan gum': 'صمغ الزانتان',
+  'lecithin': 'ليسيثين', 'mono and diglycerides': 'أحادي وثنائي الجليسريد',
+  'sodium bicarbonate': 'بيكربونات الصوديوم',
+  'calcium carbonate': 'كربونات الكالسيوم',
+  'ascorbic acid': 'حمض الأسكوربيك', 'acetic acid': 'حمض الخليك',
+  'lactic acid': 'حمض اللاكتيك', 'malic acid': 'حمض الماليك',
+  'phosphoric acid': 'حمض الفوسفوريك',
+  'strawberry': 'فراولة', 'strawberries': 'فراولة',
+  'mango': 'مانجو', 'banana': 'موز', 'apple': 'تفاح', 'orange': 'برتقال',
+  'grape': 'عنب', 'raspberry': 'توت', 'blueberry': 'توت أزرق',
+  'cherry': 'كرز', 'peach': 'خوخ', 'pineapple': 'أناناس', 'coconut': 'جوز الهند',
   'cucumber': 'خيار', 'spinach': 'سبانخ', 'lettuce': 'خس',
-  'vitamin d': 'فيتامين د', 'vitamin c': 'فيتامين سي',
-  'calcium': 'كالسيوم', 'iron': 'حديد',
-  'bread crumbs': 'بقسماط', 'modified starch': 'نشا معدل',
+  'carrot': 'جزر', 'celery': 'كرفس', 'broccoli': 'بروكلي',
+  'vitamin d': 'فيتامين د', 'vitamin c': 'فيتامين سي', 'vitamin a': 'فيتامين أ',
+  'vitamin e': 'فيتامين هـ', 'vitamin b': 'فيتامين ب',
+  'folic acid': 'حمض الفوليك', 'niacin': 'نياسين', 'riboflavin': 'ريبوفلافين',
+  'thiamine': 'ثيامين', 'biotin': 'بيوتين',
+  'calcium': 'كالسيوم', 'iron': 'حديد', 'zinc': 'زنك', 'magnesium': 'مغنيسيوم',
+  'potassium': 'بوتاسيوم', 'sodium': 'صوديوم', 'phosphorus': 'فسفور',
+  'bread crumbs': 'بقسماط', 'breadcrumbs': 'بقسماط',
+  'carbonated water': 'ماء غازي', 'sparkling water': 'ماء فوار',
+  'coffee': 'قهوة', 'tea': 'شاي', 'cocoa extract': 'خلاصة الكاكاو',
+  'oat': 'شوفان', 'oats': 'شوفان', 'oat flour': 'دقيق الشوفان',
+  'barley': 'شعير', 'rye': 'جاودار', 'malt': 'شعير مملح',
+  'malt extract': 'خلاصة الشعير', 'barley malt': 'شعير مملح',
 }
 
-function translateIngredient(text, toLang) {
-  if (toLang === 'en') return text
+function translateToArabic(text) {
   const lower = text.toLowerCase().trim()
+  // Direct match
   if (INGREDIENT_AR[lower]) return INGREDIENT_AR[lower]
-  for (const [en, ar] of Object.entries(INGREDIENT_AR)) {
-    if (lower.includes(en)) return lower.replace(en, ar)
+  // Try longest substring match first
+  const sorted = Object.entries(INGREDIENT_AR).sort((a, b) => b[0].length - a[0].length)
+  for (const [en, ar] of sorted) {
+    if (lower === en) return ar
+  }
+  for (const [en, ar] of sorted) {
+    if (lower.includes(en)) {
+      return lower.replace(new RegExp(en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), ar)
+    }
   }
   return text
 }
 
-// Local fallback database with bilingual data
+// Local fallback database
 const localDatabase = {
   '6281000000001': {
-    name: 'Almarai Full Cream Milk', nameAr: 'حليب المراعي كامل الدسم',
-    brand: 'Almarai', brandAr: 'المراعي',
-    ingredients: ['milk', 'vitamin D'],
+    name: 'حليب المراعي كامل الدسم', brand: 'المراعي',
+    ingredientsEn: ['milk', 'vitamin D'],
     ingredientsAr: ['حليب', 'فيتامين د'],
     image: '',
   },
   '6281000000002': {
-    name: 'Indomie Instant Noodles', nameAr: 'إندومي نودلز',
-    brand: 'Indomie', brandAr: 'إندومي',
-    ingredients: ['wheat flour', 'palm oil', 'salt', 'soy sauce', 'spices'],
+    name: 'إندومي نودلز', brand: 'إندومي',
+    ingredientsEn: ['wheat flour', 'palm oil', 'salt', 'soy sauce', 'spices'],
     ingredientsAr: ['دقيق القمح', 'زيت النخيل', 'ملح', 'صوص الصويا', 'بهارات'],
     image: '',
   },
   '6281000000003': {
-    name: 'Galaxy Chocolate Bar', nameAr: 'شوكولاتة جالكسي',
-    brand: 'Galaxy', brandAr: 'جالكسي',
-    ingredients: ['cocoa', 'milk powder', 'sugar', 'hazelnut', 'emulsifier'],
+    name: 'شوكولاتة جالكسي', brand: 'جالكسي',
+    ingredientsEn: ['cocoa', 'milk powder', 'sugar', 'hazelnut', 'emulsifier'],
     ingredientsAr: ['كاكاو', 'حليب مجفف', 'سكر', 'بندق', 'مستحلب'],
     image: '',
   },
   '6281000000005': {
-    name: 'Al Rabee Apple Juice', nameAr: 'عصير تفاح الربيع',
-    brand: 'Al Rabee', brandAr: 'الربيع',
-    ingredients: ['apple concentrate', 'water', 'sugar'],
+    name: 'عصير تفاح الربيع', brand: 'الربيع',
+    ingredientsEn: ['apple concentrate', 'water', 'sugar'],
     ingredientsAr: ['مركز التفاح', 'ماء', 'سكر'],
     image: '',
   },
   '6281000000008': {
-    name: 'Americana Chicken Nuggets', nameAr: 'ناغتس أمريكانا',
-    brand: 'Americana', brandAr: 'أمريكانا',
-    ingredients: ['chicken', 'wheat flour', 'bread crumbs', 'eggs', 'spices'],
+    name: 'ناغتس أمريكانا', brand: 'أمريكانا',
+    ingredientsEn: ['chicken', 'wheat flour', 'bread crumbs', 'eggs', 'spices'],
     ingredientsAr: ['دجاج', 'دقيق القمح', 'بقسماط', 'بيض', 'بهارات'],
     image: '',
   },
   '6281000000011': {
-    name: 'Snickers Bar', nameAr: 'سنيكرز',
-    brand: 'Mars', brandAr: 'مارس',
-    ingredients: ['chocolate', 'peanut', 'caramel', 'milk', 'sugar', 'egg white'],
+    name: 'سنيكرز', brand: 'مارس',
+    ingredientsEn: ['chocolate', 'peanut', 'caramel', 'milk', 'sugar', 'egg white'],
     ingredientsAr: ['شوكولاتة', 'فول سوداني', 'كراميل', 'حليب', 'سكر', 'بياض البيض'],
     image: '',
   },
   '6281000000012': {
-    name: 'Tuna Can', nameAr: 'تونة معلبة',
-    brand: 'Almarai', brandAr: 'المراعي',
-    ingredients: ['tuna fish', 'sunflower oil', 'salt'],
+    name: 'تونة معلبة', brand: 'المراعي',
+    ingredientsEn: ['tuna fish', 'sunflower oil', 'salt'],
     ingredientsAr: ['سمك التونة', 'زيت دوار الشمس', 'ملح'],
     image: '',
   },
 }
 
-function parseIngredients(ingredientsText) {
-  if (!ingredientsText) return []
-  return ingredientsText
-    .replace(/_/g, '')
-    .replace(/\s*\([^)]*\)/g, '')
-    .split(/,|;/)
-    .map((i) => i.trim())
-    .filter((i) => i.length > 0 && i.length < 60)
-    .slice(0, 30)
+function parseIngredients(text) {
+  if (!text) return []
+  return text.replace(/_/g, '').replace(/\s*\([^)]*\)/g, '')
+    .split(/,|;/).map((i) => i.trim()).filter((i) => i.length > 0 && i.length < 80).slice(0, 30)
 }
 
-function detectAllergyMatches(ingredients, selectedAllergyIds) {
-  const fullText = ingredients.join(' ').toLowerCase()
+function detectAllergyMatches(ingredientsEn, selectedAllergyIds) {
+  const fullText = ingredientsEn.join(' ').toLowerCase()
   const matched = []
   ALLERGY_TYPES.forEach((allergy) => {
     if (!selectedAllergyIds.includes(allergy.id)) return
@@ -145,86 +203,87 @@ function detectAllergyMatches(ingredients, selectedAllergyIds) {
   return matched
 }
 
-export function isIngredientAllergen(ingredient, allergenIds) {
-  const lower = ingredient.toLowerCase()
+/**
+ * isIngredientAllergen - Checks BOTH the displayed Arabic text AND
+ * the original English text for allergy keyword matches.
+ */
+export function isIngredientAllergen(ingredientAr, ingredientEn, allergenIds) {
+  const lowerAr = ingredientAr.toLowerCase()
+  const lowerEn = (ingredientEn || '').toLowerCase()
   for (const allergenId of allergenIds) {
     const allergy = ALLERGY_TYPES.find((a) => a.id === allergenId)
-    if (allergy?.keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
-      return allergenId
-    }
+    if (!allergy) continue
+    const match = allergy.keywords.some((kw) => {
+      const kwl = kw.toLowerCase()
+      return lowerEn.includes(kwl) || lowerAr.includes(kwl) || kwl.includes(lowerEn) || kwl.includes(lowerAr)
+    })
+    if (match) return allergenId
   }
   return null
 }
 
-/**
- * lookupBarcode - Bilingual product lookup
- *
- * @param {string} barcodeNumber
- * @param {string[]} selectedAllergyIds
- * @param {string} lang - 'ar' or 'en'
- */
-export async function lookupBarcode(barcodeNumber, selectedAllergyIds, lang = 'en') {
-  const code = barcodeNumber.trim()
-  const isAr = lang === 'ar'
+async function fetchWithRetry(url, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000) })
+      if (response.ok) return await response.json()
+    } catch {
+      if (attempt === retries) throw new Error('API unavailable')
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)))
+    }
+  }
+  throw new Error('API unavailable')
+}
 
-  // Try Open Food Facts API first
+/**
+ * lookupBarcode - Returns product with ALWAYS-ARABIC ingredients
+ * plus English raw ingredients for allergy matching.
+ */
+export async function lookupBarcode(barcodeNumber, selectedAllergyIds) {
+  const code = barcodeNumber.trim()
+
+  // Try Open Food Facts API with retry
   try {
-    const response = await fetch(
-      `https://world.openfoodfacts.org/api/v0/product/${code}.json`,
-      { signal: AbortSignal.timeout(8000) }
+    const data = await fetchWithRetry(
+      `https://world.openfoodfacts.org/api/v0/product/${code}.json`
     )
-    const data = await response.json()
 
     if (data.status === 1 && data.product) {
       const p = data.product
-
-      // Pick name in preferred language, fallback to other
-      const name = isAr
-        ? (p.product_name_ar || p.product_name || p.product_name_en || 'منتج غير معروف')
-        : (p.product_name_en || p.product_name || 'Unknown Product')
-      const brand = p.brands || (isAr ? 'علامة غير معروفة' : 'Unknown Brand')
+      const name = p.product_name_ar || p.product_name || p.product_name_en || 'منتج غير معروف'
+      const brand = p.brands || 'علامة غير معروفة'
       const image = p.image_front_small_url || p.image_url || ''
 
-      // Parse ingredients - try Arabic first if Arabic is selected
-      let ingredients = []
-      let ingredientsRaw = [] // always English for allergy matching
-      if (isAr && p.ingredients_text_ar) {
-        ingredients = parseIngredients(p.ingredients_text_ar)
-      }
-      // Always get English/default for allergy keyword matching
-      if (p.ingredients_text) {
-        ingredientsRaw = parseIngredients(p.ingredients_text)
-      } else if (p.ingredients_text_en) {
-        ingredientsRaw = parseIngredients(p.ingredients_text_en)
+      // Get English ingredients for allergy matching
+      let ingredientsEn = []
+      if (p.ingredients_text_en) {
+        ingredientsEn = parseIngredients(p.ingredients_text_en)
+      } else if (p.ingredients_text) {
+        ingredientsEn = parseIngredients(p.ingredients_text)
       } else if (p.ingredients) {
-        ingredientsRaw = p.ingredients.map((i) => i.text || '').filter(Boolean).slice(0, 30)
+        ingredientsEn = p.ingredients.map((i) => i.text || '').filter(Boolean).slice(0, 30)
       }
 
-      // If no Arabic ingredients from API, translate the English ones
-      if (isAr && ingredients.length === 0 && ingredientsRaw.length > 0) {
-        ingredients = ingredientsRaw.map((i) => translateIngredient(i, 'ar'))
+      // Get Arabic ingredients: API Arabic → translate English → fallback
+      let ingredientsAr = []
+      if (p.ingredients_text_ar) {
+        ingredientsAr = parseIngredients(p.ingredients_text_ar)
       }
-      // If English mode, use raw
-      if (!isAr) {
-        ingredients = ingredientsRaw.map((i) => i.toLowerCase())
+      if (ingredientsAr.length === 0 && ingredientsEn.length > 0) {
+        ingredientsAr = ingredientsEn.map((i) => translateToArabic(i))
       }
 
-      // Allergy detection always uses English raw keywords
-      const rawForMatching = ingredientsRaw.length > 0
-        ? ingredientsRaw
-        : ingredients
-      const detectedFromIngredients = detectAllergyMatches(
-        rawForMatching.map((i) => i.toLowerCase()),
-        selectedAllergyIds
-      )
+      // Allergy detection on English text
+      const matchingText = ingredientsEn.length > 0 ? ingredientsEn : ingredientsAr
+      const detected = detectAllergyMatches(matchingText.map((i) => i.toLowerCase()), selectedAllergyIds)
 
+      // Also check API allergen tags
       const apiAllergenText = (p.allergens_tags || []).join(' ').toLowerCase()
-      const detectedFromTags = []
       ALLERGY_TYPES.forEach((allergy) => {
         if (!selectedAllergyIds.includes(allergy.id)) return
-        if (detectedFromIngredients.includes(allergy.id)) return
+        if (detected.includes(allergy.id)) return
         if (allergy.keywords.some((kw) => apiAllergenText.includes(kw.toLowerCase()))) {
-          detectedFromTags.push(allergy.id)
+          detected.push(allergy.id)
         }
       })
 
@@ -233,26 +292,26 @@ export async function lookupBarcode(barcodeNumber, selectedAllergyIds, lang = 'e
         name,
         brand,
         image,
-        ingredients,
-        matchedAllergenIds: [...new Set([...detectedFromIngredients, ...detectedFromTags])],
+        ingredientsAr,
+        ingredientsEn,
+        matchedAllergenIds: [...new Set(detected)],
       }
     }
   } catch {
-    // API failed
+    // API failed after retries
   }
 
   // Fallback: local database
   const local = localDatabase[code]
   if (local) {
-    const displayIngredients = isAr ? local.ingredientsAr : local.ingredients
-    const allDetected = detectAllergyMatches(local.ingredients, selectedAllergyIds)
     return {
       source: 'local',
-      name: isAr ? local.nameAr : local.name,
-      brand: isAr ? local.brandAr : local.brand,
+      name: local.name,
+      brand: local.brand,
       image: local.image,
-      ingredients: displayIngredients,
-      matchedAllergenIds: allDetected,
+      ingredientsAr: local.ingredientsAr,
+      ingredientsEn: local.ingredientsEn,
+      matchedAllergenIds: detectAllergyMatches(local.ingredientsEn, selectedAllergyIds),
     }
   }
 
