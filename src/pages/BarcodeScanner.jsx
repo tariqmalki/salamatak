@@ -20,10 +20,15 @@ export default function BarcodeScanner() {
   const streamRef = useRef(null)
   const canvasRef = useRef(null)
 
-  const [selectedAllergies] = useState(() => {
-    const saved = localStorage.getItem('salamatak-allergies')
-    return saved ? JSON.parse(saved) : ['nuts']
-  })
+  // Read allergies fresh from localStorage on every render to stay in sync
+  const getSelectedAllergies = () => {
+    try {
+      const saved = localStorage.getItem('salamatak-allergies')
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  }
+
+  const [selectedAllergies, setSelectedAllergies] = useState(getSelectedAllergies)
 
   const handleScan = async () => {
     if (!barcode.trim()) return
@@ -32,8 +37,18 @@ export default function BarcodeScanner() {
     setResult(null)
     setError(null)
 
+    // Re-read allergies fresh at scan time to catch any changes
+    const freshAllergies = getSelectedAllergies()
+    setSelectedAllergies(freshAllergies)
+
+    if (freshAllergies.length === 0) {
+      setError('لم يتم اختيار أي حساسية. اذهب للصفحة الرئيسية لتحديد حساسيتك.')
+      setScanning(false)
+      return
+    }
+
     try {
-      const product = await lookupBarcode(barcode.trim(), selectedAllergies)
+      const product = await lookupBarcode(barcode.trim(), freshAllergies)
       if (product) {
         setResult(product)
       } else {

@@ -191,15 +191,21 @@ function parseIngredients(text) {
     .split(/,|;/).map((i) => i.trim()).filter((i) => i.length > 0 && i.length < 80).slice(0, 30)
 }
 
-function detectAllergyMatches(ingredientsEn, selectedAllergyIds) {
-  const fullText = ingredientsEn.join(' ').toLowerCase()
+/**
+ * detectAllergyMatches - Scans ALL provided text sources for allergy keywords.
+ * Accepts multiple text arrays and checks every one of them.
+ */
+function detectAllergyMatches(selectedAllergyIds, ...textArrays) {
+  const fullText = textArrays.flat().join(' ').toLowerCase()
   const matched = []
-  ALLERGY_TYPES.forEach((allergy) => {
-    if (!selectedAllergyIds.includes(allergy.id)) return
+  for (let i = 0; i < selectedAllergyIds.length; i++) {
+    const allergyId = selectedAllergyIds[i]
+    const allergy = ALLERGY_TYPES.find((a) => a.id === allergyId)
+    if (!allergy) continue
     if (allergy.keywords.some((kw) => fullText.includes(kw.toLowerCase()))) {
-      matched.push(allergy.id)
+      matched.push(allergyId)
     }
-  })
+  }
   return matched
 }
 
@@ -254,38 +260,36 @@ export async function lookupBarcode(barcodeNumber, selectedAllergyIds) {
       const brand = p.brands || 'علامة غير معروفة'
       const image = p.image_front_small_url || p.image_url || ''
 
-      // Get English ingredients for allergy matching
-      let ingredientsEn = []
-      if (p.ingredients_text_en) {
-        ingredientsEn = parseIngredients(p.ingredients_text_en)
-      } else if (p.ingredients_text) {
-        ingredientsEn = parseIngredients(p.ingredients_text)
-      } else if (p.ingredients) {
-        ingredientsEn = p.ingredients.map((i) => i.text || '').filter(Boolean).slice(0, 30)
+      // Collect ALL available ingredient texts from every language
+      const ingredientsEn = parseIngredients(p.ingredients_text_en)
+      const ingredientsDefault = parseIngredients(p.ingredients_text)
+      const ingredientsArApi = parseIngredients(p.ingredients_text_ar)
+      const ingredientsFr = parseIngredients(p.ingredients_text_fr)
+      const ingredientsStructured = (p.ingredients || []).map((i) => i.text || '').filter(Boolean).slice(0, 30)
+
+      // Pick best English source for display
+      let ingredientsForDisplay = ingredientsEn.length > 0 ? ingredientsEn
+        : ingredientsDefault.length > 0 ? ingredientsDefault
+        : ingredientsStructured
+
+      // Arabic display: API Arabic → translate best English source
+      let ingredientsAr = ingredientsArApi.length > 0 ? ingredientsArApi : []
+      if (ingredientsAr.length === 0 && ingredientsForDisplay.length > 0) {
+        ingredientsAr = ingredientsForDisplay.map((i) => translateToArabic(i))
       }
 
-      // Get Arabic ingredients: API Arabic → translate English → fallback
-      let ingredientsAr = []
-      if (p.ingredients_text_ar) {
-        ingredientsAr = parseIngredients(p.ingredients_text_ar)
-      }
-      if (ingredientsAr.length === 0 && ingredientsEn.length > 0) {
-        ingredientsAr = ingredientsEn.map((i) => translateToArabic(i))
-      }
+      // Allergy detection: scan ALL text sources + API allergen tags + traces
+      const allergenTags = (p.allergens_tags || []).join(' ')
+      const allergenText = p.allergens || ''
+      const tracesTags = (p.traces_tags || []).join(' ')
+      const tracesText = p.traces || ''
 
-      // Allergy detection on English text
-      const matchingText = ingredientsEn.length > 0 ? ingredientsEn : ingredientsAr
-      const detected = detectAllergyMatches(matchingText.map((i) => i.toLowerCase()), selectedAllergyIds)
-
-      // Also check API allergen tags
-      const apiAllergenText = (p.allergens_tags || []).join(' ').toLowerCase()
-      ALLERGY_TYPES.forEach((allergy) => {
-        if (!selectedAllergyIds.includes(allergy.id)) return
-        if (detected.includes(allergy.id)) return
-        if (allergy.keywords.some((kw) => apiAllergenText.includes(kw.toLowerCase()))) {
-          detected.push(allergy.id)
-        }
-      })
+      const detected = detectAllergyMatches(
+        selectedAllergyIds,
+        ingredientsEn, ingredientsDefault, ingredientsArApi,
+        ingredientsFr, ingredientsStructured,
+        [allergenTags, allergenText, tracesTags, tracesText]
+      )
 
       return {
         source: 'api',
@@ -293,7 +297,7 @@ export async function lookupBarcode(barcodeNumber, selectedAllergyIds) {
         brand,
         image,
         ingredientsAr,
-        ingredientsEn,
+        ingredientsEn: ingredientsForDisplay,
         matchedAllergenIds: [...new Set(detected)],
       }
     }
@@ -311,7 +315,7 @@ export async function lookupBarcode(barcodeNumber, selectedAllergyIds) {
       image: local.image,
       ingredientsAr: local.ingredientsAr,
       ingredientsEn: local.ingredientsEn,
-      matchedAllergenIds: detectAllergyMatches(local.ingredientsEn, selectedAllergyIds),
+      matchedAllergenIds: detectAllergyMatches(selectedAllergyIds, local.ingredientsEn, local.ingredientsAr),
     }
   }
 
